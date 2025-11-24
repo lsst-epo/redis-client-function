@@ -41,6 +41,13 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
                 await client.set("summit-status:daily", JSON.stringify(req.body.daily));
                 return res.status(200).json({ status: "SUCCESS", message: "Saved daily stats data!"});
             }
+        } else if(req.path == "/dome-stats") {
+            if(req.body.dome == undefined) {
+                return res.status(204).json({ status: "SUCCESS", message: "No data to save! This usually means an error occurred while querying the EFD database."});
+            } else {
+                await client.set("summit-status:dome", JSON.stringify(req.body.daily));
+                return res.status(200).json({ status: "SUCCESS", message: "Saved dome stats data!"});
+            }
         } else {
             return res.status(404).json({ status: "ERROR", message: "Incorrect endpoint."});
         }
