@@ -59,11 +59,13 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
         let currentSummitData = await client.get('summit-status:current');
         let hourlySummitData = await client.get('summit-status:hourly');
         let dailySummitData = await client.get('summit-status:daily');
+        let domeSummitData = await client.get('summit-status:dome');
 
         let summitData = {
             current: (currentSummitData == null) ? { error: "No data available." } : JSON.parse(currentSummitData),
             hourly: (hourlySummitData == null) ? { error: "No data available." } : JSON.parse(hourlySummitData),
-            daily: (dailySummitData == null) ? { error: "No data available." } : JSON.parse(dailySummitData)
+            daily: (dailySummitData == null) ? { error: "No data available." } : JSON.parse(dailySummitData),
+            dome: (domeSummitData == null) ? { error: "No data available." } : JSON.parse(domeSummitData)
         }
         return res.status(200).send(summitData);
     } else {
