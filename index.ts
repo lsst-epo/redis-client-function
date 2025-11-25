@@ -41,6 +41,13 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
                 await client.set("summit-status:daily", JSON.stringify(req.body.daily));
                 return res.status(200).json({ status: "SUCCESS", message: "Saved daily stats data!"});
             }
+        } else if(req.path == "/dome-stats") {
+            if(req.body.dome == undefined) {
+                return res.status(204).json({ status: "SUCCESS", message: "No data to save! This usually means an error occurred while querying the EFD database."});
+            } else {
+                await client.set("summit-status:dome", JSON.stringify(req.body.dome));
+                return res.status(200).json({ status: "SUCCESS", message: "Saved dome stats data!"});
+            }
         } else {
             return res.status(404).json({ status: "ERROR", message: "Incorrect endpoint."});
         }
@@ -52,11 +59,13 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
         let currentSummitData = await client.get('summit-status:current');
         let hourlySummitData = await client.get('summit-status:hourly');
         let dailySummitData = await client.get('summit-status:daily');
+        let domeSummitData = await client.get('summit-status:dome');
 
         let summitData = {
             current: (currentSummitData == null) ? { error: "No data available." } : JSON.parse(currentSummitData),
             hourly: (hourlySummitData == null) ? { error: "No data available." } : JSON.parse(hourlySummitData),
-            daily: (dailySummitData == null) ? { error: "No data available." } : JSON.parse(dailySummitData)
+            daily: (dailySummitData == null) ? { error: "No data available." } : JSON.parse(dailySummitData),
+            dome: (domeSummitData == null) ? { error: "No data available." } : JSON.parse(domeSummitData)
         }
         return res.status(200).send(summitData);
     } else {
