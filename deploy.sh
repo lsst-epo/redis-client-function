@@ -1,1 +1,1 @@
-gcloud functions deploy redis-client --runtime nodejs16 --trigger-http --allow-unauthenticated --entry-point summit-status --region=us-west1
+gcloud functions deploy redis-client --runtime nodejs20 --trigger-http --allow-unauthenticated --entry-point summit-status --region=us-west1
