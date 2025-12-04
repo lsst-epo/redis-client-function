@@ -48,6 +48,24 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
                 await client.set("summit-status:dome", JSON.stringify(req.body.dome));
                 return res.status(200).json({ status: "SUCCESS", message: "Saved dome stats data!"});
             }
+        } else if(req.path == "/basic-weather-stats") {
+            if(req.body.data == undefined) {
+                return res.status(204).json({ status: "SUCCESS", message: "No data to save! This usually means an error occurred while querying the Weather API."});
+            } else {
+                const mode = req.body.params || 'current';
+                const cacheKey = `summit-status:basic-weather-${mode}`;
+                await client.set(cacheKey, JSON.stringify(req.body.data));
+                return res.status(200).json({ status: "SUCCESS", message: `Saved basic weather data!`});
+            }
+        } else if(req.path == "/cloud-weather-stats") {
+            if(req.body.data == undefined) {
+                return res.status(204).json({ status: "SUCCESS", message: "No data to save! This usually means an error occurred while querying the Weather API."});
+            } else {
+                const mode = req.body.params || 'current';
+                const cacheKey = `summit-status:cloud-weather-${mode}`;
+                await client.set(cacheKey, JSON.stringify(req.body.data));
+                return res.status(200).json({ status: "SUCCESS", message: "Saved cloud weather data!"});
+            }
         } else {
             return res.status(404).json({ status: "ERROR", message: "Incorrect endpoint."});
         }
@@ -60,12 +78,16 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
         let hourlySummitData = await client.get('summit-status:hourly');
         let dailySummitData = await client.get('summit-status:daily');
         let domeSummitData = await client.get('summit-status:dome');
+        let basicWeatherSummitData = await client.get('summit-status:basic-weather-current'); // `current` is the default mode and the only thing we care about for caching for now
+        let basicCloudSummitData = await client.get('summit-status:cloud-weather-current')
 
         let summitData = {
             current: (currentSummitData == null) ? { error: "No data available." } : JSON.parse(currentSummitData),
             hourly: (hourlySummitData == null) ? { error: "No data available." } : JSON.parse(hourlySummitData),
             daily: (dailySummitData == null) ? { error: "No data available." } : JSON.parse(dailySummitData),
-            dome: (domeSummitData == null) ? { error: "No data available." } : JSON.parse(domeSummitData)
+            dome: (domeSummitData == null) ? { error: "No data available." } : JSON.parse(domeSummitData),
+            basicWeather: (basicWeatherSummitData == null) ? { error: "No data available." } : JSON.parse(basicWeatherSummitData),
+            cloudWeather: (basicCloudSummitData == null) ? { error: "No data available." } : JSON.parse(basicCloudSummitData)
         }
         return res.status(200).send(summitData);
     } else {
