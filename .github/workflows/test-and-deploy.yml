@@ -31,7 +31,7 @@ jobs:
       - name: Run tests
         run: yarn test
       - name: Parse deployment info
-        # if: github.ref == 'refs/heads/main' 
+        if: github.ref == 'refs/heads/main' 
         id: deploy-info
         run: |
           # Determine environment to deploy to
@@ -51,15 +51,15 @@ jobs:
           echo secret_key_name=$secret_key_name >> "$GITHUB_OUTPUT"
 
       - name: Login to GCP
-        # if: github.ref == 'refs/heads/main' 
+        if: github.ref == 'refs/heads/main' 
         uses: "google-github-actions/auth@v2.1.11"
         with:
           credentials_json: ${{ steps.deploy-info.outputs.credentials_json }}
       - name: "Set up Cloud SDK"
-        # if: github.ref == 'refs/heads/main' 
+        if: github.ref == 'refs/heads/main' 
         uses: "google-github-actions/setup-gcloud@v2.1.5"
       - name: Fetch and Set Environment Variables from Secret Manager
-        # if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main'
         id: deploy-secrets
         run: |
           # The secret value must be a ENV format.
@@ -67,5 +67,5 @@ jobs:
           # Write ENV file to .env
           echo "$SECRET_ENV" > .env
       - name: Deploy to Google Cloud functions
-        # if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main'
         run: ./deploy.sh
