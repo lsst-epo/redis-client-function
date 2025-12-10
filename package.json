@@ -8,7 +8,8 @@
     "start": "functions-framework --target=index",
     "start-dev": "npx @google-cloud/functions-framework --target=weather-stats --source=dist/index.js --verbose",
     "prestart": "npm run build",
-    "gcp-build": "npm run build"
+    "gcp-build": "npm run build",
+    "test": "jest"
   },
   "author": "",
   "license": "ISC",
@@ -20,6 +21,9 @@
     "redis": "^4.6.7"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "jest": "^30.2.0",
+    "ts-jest": "^29.4.6",
     "typescript": "^5.1.6"
   }
 }
