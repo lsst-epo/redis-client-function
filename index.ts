@@ -66,6 +66,14 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
                 await client.set(cacheKey, JSON.stringify(req.body.data));
                 return res.status(200).json({ status: "SUCCESS", message: "Saved cloud weather data!"});
             }
+        } else if(req.path == "/nightly-digest-stats") {
+            if(req.body.data == undefined) {
+                return res.status(204).json({ status: "SUCCESS", message: "No data to save! This usually means an error occurred while updating the data for the Nightly Digest API."});
+            } else {
+                const cacheKey = `summit-status:nightly-digest`;
+                await client.set(cacheKey, JSON.stringify(req.body.data));
+                return res.status(200).json({ status: "SUCCESS", message: "Saved nightly digest data!"});
+            }
         } else {
             return res.status(404).json({ status: "ERROR", message: "Incorrect endpoint."});
         }
@@ -80,6 +88,7 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
         let domeSummitData = await client.get('summit-status:dome');
         let basicWeatherSummitData = await client.get('summit-status:basic-weather-current'); // `current` is the default mode and the only thing we care about for caching for now
         let basicCloudSummitData = await client.get('summit-status:cloud-weather-current')
+        let nightlyDigestSummitData = await client.get('summit-status:nightly-digest')
 
         let summitData = {
             current: (currentSummitData == null) ? { error: "No data available." } : JSON.parse(currentSummitData),
@@ -87,7 +96,8 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
             daily: (dailySummitData == null) ? { error: "No data available." } : JSON.parse(dailySummitData),
             dome: (domeSummitData == null) ? { error: "No data available." } : JSON.parse(domeSummitData),
             basicWeather: (basicWeatherSummitData == null) ? { error: "No data available." } : JSON.parse(basicWeatherSummitData),
-            cloudWeather: (basicCloudSummitData == null) ? { error: "No data available." } : JSON.parse(basicCloudSummitData)
+            cloudWeather: (basicCloudSummitData == null) ? { error: "No data available." } : JSON.parse(basicCloudSummitData),
+            nightlyDigest: (nightlyDigestSummitData == null) ? { error: "No data available " } : JSON.parse(nightlyDigestSummitData)
         }
         return res.status(200).send(summitData);
     } else {
