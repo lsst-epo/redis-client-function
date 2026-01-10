@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsc",
     "start": "functions-framework --target=index",
-    "start-dev": "npx @google-cloud/functions-framework --target=weather-stats --source=dist/index.js --verbose",
+    "start-dev": "npx @google-cloud/functions-framework --target=summit-status --source=dist/index.js --verbose",
     "prestart": "npm run build",
     "gcp-build": "npm run build",
     "test": "jest"

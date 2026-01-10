@@ -1,0 +1,71 @@
+name: Deploy and Test Cloud Function
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    types:
+      - labeled
+      - 'opened'
+      - 'synchronize'
+      - 'reopened'
+    branches:
+      - 'develop'
+      - 'main'
+
+jobs:
+  test-and-deploy:
+    name: Run Unit Tests and Deploy if needed
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'preview') || github.event.label.name == 'preview' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: setup node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+      - name: Install Dependencies
+        run: yarn
+      - name: Run tests
+        run: yarn test
+      - name: Parse deployment info
+        if: github.ref == 'refs/heads/main' 
+        id: deploy-info
+        run: |
+          # Determine environment to deploy to
+          # if ${{ github.ref_type == 'tag'}}; then
+          #   environment_name="prod"
+          #   credentials_json='${{ secrets.PIPELINE_EPO_PROD_PROJECT }}'
+          # elif ${{ contains(github.ref, 'main') || contains(github.base_ref, 'main') }}; then
+          #   environment_name="int"
+          #   credentials_json='${{ secrets.SKYVIEWER_INT_SERVICE_ACCOUNT }}'
+          # else
+          environment_name="dev"
+          credentials_json='${{ secrets.DEV_SA_KEY }}'
+          secret_key_name='${{ secrets.DEV_SECRET_NAME }}'
+          # fi
+          echo environment_name=$environment_name >> "$GITHUB_OUTPUT"
+          echo credentials_json=$credentials_json >> "$GITHUB_OUTPUT"
+          echo secret_key_name=$secret_key_name >> "$GITHUB_OUTPUT"
+
+      - name: Login to GCP
+        if: github.ref == 'refs/heads/main' 
+        uses: "google-github-actions/auth@v2.1.11"
+        with:
+          credentials_json: ${{ steps.deploy-info.outputs.credentials_json }}
+      - name: "Set up Cloud SDK"
+        if: github.ref == 'refs/heads/main' 
+        uses: "google-github-actions/setup-gcloud@v2.1.5"
+      - name: Fetch and Set Environment Variables from Secret Manager
+        if: github.ref == 'refs/heads/main'
+        id: deploy-secrets
+        run: |
+          # The secret value must be a ENV format.
+          SECRET_ENV=$(gcloud secrets versions access latest --secret=${{ steps.deploy-info.outputs.secret_key_name }})
+          # Write ENV file to .env
+          echo "$SECRET_ENV" > .env
+      - name: Deploy to Google Cloud functions
+        if: github.ref == 'refs/heads/main'
+        run: ./deploy.sh
