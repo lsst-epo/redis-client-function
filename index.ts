@@ -66,6 +66,14 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
                 await client.set(cacheKey, JSON.stringify(req.body.data));
                 return res.status(200).json({ status: "SUCCESS", message: "Saved cloud weather data!"});
             }
+        } else if(req.path == "/raw-current-weather-stats") {
+            if(req.body.data == undefined) {
+                return res.status(204).json({ status: "SUCCESS", message: "No data to save! This usually means an error occurred while querying the Weather API."});
+            } else {
+                const cacheKey = `summit-status:raw-current-weather-data`;
+                await client.set(cacheKey, JSON.stringify(req.body.data));
+                return res.status(200).json({ status: "SUCCESS", message: "Saved raw current weather data!"});
+            }
         } else if(req.path == "/nightly-digest-stats") {
             if(req.body.data == undefined) {
                 return res.status(204).json({ status: "SUCCESS", message: "No data to save! This usually means an error occurred while updating the data for the Nightly Digest API."});
@@ -87,8 +95,9 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
         let dailySummitData = await client.get('summit-status:daily');
         let domeSummitData = await client.get('summit-status:dome');
         let basicWeatherSummitData = await client.get('summit-status:basic-weather-current'); // `current` is the default mode and the only thing we care about for caching for now
-        let basicCloudSummitData = await client.get('summit-status:cloud-weather-current')
-        let nightlyDigestSummitData = await client.get('summit-status:nightly-digest')
+        let basicCloudSummitData = await client.get('summit-status:cloud-weather-current');
+        let rawCurrentWeatherSummitData = await client.get('summit-status:raw-current-weather-data'); // uses the raw `current` meteoblue package (rather than the forecast packages: basic and cloud)
+        let nightlyDigestSummitData = await client.get('summit-status:nightly-digest');
 
         let summitData = {
             current: (currentSummitData == null) ? { error: "No data available." } : JSON.parse(currentSummitData),
@@ -97,7 +106,8 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
             dome: (domeSummitData == null) ? { error: "No data available." } : JSON.parse(domeSummitData),
             basicWeather: (basicWeatherSummitData == null) ? { error: "No data available." } : JSON.parse(basicWeatherSummitData),
             cloudWeather: (basicCloudSummitData == null) ? { error: "No data available." } : JSON.parse(basicCloudSummitData),
-            nightlyDigest: (nightlyDigestSummitData == null) ? { error: "No data available " } : JSON.parse(nightlyDigestSummitData)
+            rawCurrentWeather: (rawCurrentWeatherSummitData == null) ? { error: "No data available." } : JSON.parse(rawCurrentWeatherSummitData),  // uses the raw `current` meteoblue package (rather than the forecast packages: basic and cloud)
+            nightlyDigest: (nightlyDigestSummitData == null) ? { error: "No data available." } : JSON.parse(nightlyDigestSummitData)
         }
         return res.status(200).send(summitData);
     } else {

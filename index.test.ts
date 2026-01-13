@@ -143,7 +143,9 @@ describe('Redis', () => {
             daily: [{ day: 'Mon' }],
             dome: { status: 'OPEN' },
             basicWeather: { condition: 'Sunny' },
-            cloudWeather: { coverage: 'None' }
+            cloudWeather: { coverage: 'None' },
+            nightlyDigest: { error: "No data available."},
+            rawCurrentWeather: {error: "No data available."}
         });
     })
 
@@ -164,7 +166,9 @@ describe('Redis', () => {
             daily: { error: "No data available."},
             dome: { error: "No data available."},
             basicWeather: { error: "No data available."},
-            cloudWeather: { error: "No data available."}
+            cloudWeather: { error: "No data available."},
+            nightlyDigest: { error: "No data available."},
+            rawCurrentWeather: {error: "No data available."}
         });
     })
 
