@@ -5,8 +5,11 @@ The `redis-client` function stores and serves up data from Redis.
 Typically, this function is called via `POST` request from `efd-client-function` and `GET` requests from Hasura.
 
 ## Deployment
+Make sure you have populated your .env file based on .env.sample
 
-First, build the typescript:
+The `REDIS_BEARER_TOKEN` is the required auth header
+
+Build the typescript:
 
 ```
 yarn build
