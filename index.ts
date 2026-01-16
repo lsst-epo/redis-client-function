@@ -5,6 +5,7 @@ import * as ff from '@google-cloud/functions-framework';
 ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
     res.set('Access-Control-Allow-Origin', "*")
     res.set('Access-Control-Allow-Methods', 'GET, POST');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
     if (req.method === "OPTIONS") {
         // Send response to OPTIONS requests
@@ -16,6 +17,17 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
         
     } else if(req.method == "POST") {
         console.log("SummitStatusDataUpdater: Saving Data!"); // Used for querying Logging Explorer to find the "SummitStatusDataUpdater"
+
+        const authHeader = req.headers.authorization;
+        const REDIS_BEARER_TOKEN = process.env.REDIS_BEARER_TOKEN;
+
+        if (!authHeader || authHeader !== `Bearer ${REDIS_BEARER_TOKEN}`) {
+            console.error('Unauthorized attempt');
+            return res.status(401).json({
+                status: "ERROR",
+                message: "Unauthorized: Missing or invalid token."
+            })
+        }
 
         const client = await getClient();
         await client.connect();

@@ -24,7 +24,10 @@ describe('Redis', () => {
         const req = { 
             body: body,
             method: method,
-            path: path
+            path: path,
+            headers: {
+                authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
+            }
         };
         const res = {
             status: jest.fn().mockReturnThis(),
@@ -114,6 +117,20 @@ describe('Redis', () => {
             JSON.stringify(data.data)
         )
     })
+
+    it('should return 401 if authorization is missing or invalid', async () => {
+        const { req, res } = createMockContext('/current-stats', { current: {} }, "POST");
+        
+        req.headers.authorization = 'Bearer incorrect-token';
+    
+        await mainHandler(req, res);
+    
+        expect(res.status).toHaveBeenCalledWith(401);
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            status: "ERROR",
+            message: "Unauthorized: Missing or invalid token."
+        }));
+    });
 
     
     it('should get data', async () => {
