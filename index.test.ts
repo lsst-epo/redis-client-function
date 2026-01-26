@@ -166,8 +166,8 @@ describe('Redis', () => {
         });
     })
 
-    it('should get data for /widget', async () => {
-        const path = "/widget";
+    it('should get data for /widgets', async () => {
+        const path = "/widgets";
         const body = "{}"
         const { req, res } = createMockContext(path, body, "GET")
 
@@ -199,7 +199,9 @@ describe('Redis', () => {
         expect(responseData).toEqual({
             weather: { pictocode: 2 },
             exposures: { count: 7 },
-            dome: { isOpen: true }
+            dome: { isOpen: true },
+            surveyStats: { progress: 0 },
+            alerts: { count: 0 }
         });
     })
 

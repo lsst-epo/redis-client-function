@@ -123,7 +123,7 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
         }
         if (req.path == '/') {
             return res.status(200).send(summitData);
-        } else if (req.path == '/widget') {
+        } else if (req.path == '/widgets') {
             let widgetData = {
                 weather: { 
                     pictocode: summitData.rawCurrentWeather?.data_current?.pictocode_detailed ?? 0 
@@ -133,6 +133,12 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
                 },
                 dome: { 
                     isOpen: summitData.nightlyDigest?.dome_open ?? false
+                },
+                surveyStats: {
+                    progress: 0
+                },
+                alerts: {
+                    count: 0
                 }
             }
             return res.status(200).send(widgetData);
