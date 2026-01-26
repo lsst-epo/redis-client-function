@@ -200,10 +200,10 @@ describe('Redis', () => {
 
         expect(responseData).toEqual({
             weather: { pictocode: 2 },
-            exposure: { count: 7 },
+            exposures: { count: 7 },
             dome: { isOpen: true },
             survey: { progress: 0 },
-            alert: { count: 0 }
+            alerts: { count: 0 }
         });
     })
 
