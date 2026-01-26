@@ -110,6 +110,8 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
         let basicCloudSummitData = await client.get('summit-status:cloud-weather-current');
         let rawCurrentWeatherSummitData = await client.get('summit-status:raw-current-weather-data'); // uses the raw `current` meteoblue package (rather than the forecast packages: basic and cloud)
         let nightlyDigestSummitData = await client.get('summit-status:nightly-digest');
+        let surveyData = await client.get('summit-status:summit-stats-current');
+        let alertData = await client.get('summit-status:alert-current')
 
         let summitData = {
             current: (currentSummitData == null) ? { error: "No data available." } : JSON.parse(currentSummitData),
@@ -119,7 +121,9 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
             basicWeather: (basicWeatherSummitData == null) ? { error: "No data available." } : JSON.parse(basicWeatherSummitData),
             cloudWeather: (basicCloudSummitData == null) ? { error: "No data available." } : JSON.parse(basicCloudSummitData),
             rawCurrentWeather: (rawCurrentWeatherSummitData == null) ? { error: "No data available." } : JSON.parse(rawCurrentWeatherSummitData),  // uses the raw `current` meteoblue package (rather than the forecast packages: basic and cloud)
-            nightlyDigest: (nightlyDigestSummitData == null) ? { error: "No data available." } : JSON.parse(nightlyDigestSummitData)
+            nightlyDigest: (nightlyDigestSummitData == null) ? { error: "No data available." } : JSON.parse(nightlyDigestSummitData),
+            survey: (surveyData == null) ? { error: "No data available." } : JSON.parse(surveyData),
+            alert: (alertData == null) ? { error: "No data available." } : JSON.parse(alertData)
         }
         if (req.path == '/') {
             return res.status(200).send(summitData);
@@ -128,17 +132,17 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
                 weather: { 
                     pictocode: summitData.rawCurrentWeather?.data_current?.pictocode_detailed ?? 0 
                 },
-                exposures: { 
+                exposure: { 
                     count: summitData.nightlyDigest?.exposure_count ?? 0 
                 },
                 dome: { 
                     isOpen: summitData.nightlyDigest?.dome_open ?? false
                 },
-                surveyStats: {
-                    progress: 0
+                survey: {
+                    progress: summitData.survey?.progress ?? 0
                 },
-                alerts: {
-                    count: 0
+                alert: {
+                    count: summitData.alert?.count ?? 0
                 }
             }
             return res.status(200).send(widgetData);

@@ -161,8 +161,10 @@ describe('Redis', () => {
             dome: { status: 'OPEN' },
             basicWeather: { condition: 'Sunny' },
             cloudWeather: { coverage: 'None' },
-            nightlyDigest: { error: "No data available."},
-            rawCurrentWeather: {error: "No data available."}
+            nightlyDigest: { error: "No data available." },
+            rawCurrentWeather: { error: "No data available." },
+            survey: { error: "No data available." },
+            alert: { error: "No data available." }
         });
     })
 
@@ -198,10 +200,10 @@ describe('Redis', () => {
 
         expect(responseData).toEqual({
             weather: { pictocode: 2 },
-            exposures: { count: 7 },
+            exposure: { count: 7 },
             dome: { isOpen: true },
-            surveyStats: { progress: 0 },
-            alerts: { count: 0 }
+            survey: { progress: 0 },
+            alert: { count: 0 }
         });
     })
 
@@ -227,14 +229,16 @@ describe('Redis', () => {
         expect(res.status).toHaveBeenCalledWith(200);
 
         expect(res.send).toHaveBeenCalledWith({
-            current: { error: "No data available."},
-            hourly: { error: "No data available."},
-            daily: { error: "No data available."},
-            dome: { error: "No data available."},
-            basicWeather: { error: "No data available."},
-            cloudWeather: { error: "No data available."},
-            nightlyDigest: { error: "No data available."},
-            rawCurrentWeather: {error: "No data available."}
+            current: { error: "No data available." },
+            hourly: { error: "No data available." },
+            daily: { error: "No data available." },
+            dome: { error: "No data available." },
+            basicWeather: { error: "No data available." },
+            cloudWeather: { error: "No data available." },
+            nightlyDigest: { error: "No data available." },
+            rawCurrentWeather: { error: "No data available." },
+            survey: { error: "No data available." },
+            alert: { error: "No data available." }
         });
     })
 
