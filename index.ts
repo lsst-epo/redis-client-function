@@ -132,7 +132,7 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
                 weather: { 
                     pictocode: summitData.rawCurrentWeather?.data_current?.pictocode_detailed ?? 0 
                 },
-                exposures: { 
+                exposure: { 
                     count: summitData.nightlyDigest?.exposure_count ?? 0 
                 },
                 dome: { 
@@ -141,7 +141,7 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
                 survey: {
                     progress: summitData.survey?.progress ?? 0
                 },
-                alerts: {
+                alert: {
                     count: summitData.alert?.count ?? 0
                 }
             }
