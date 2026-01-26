@@ -133,7 +133,7 @@ describe('Redis', () => {
     });
 
     
-    it('should get data', async () => {
+    it('should get data for /', async () => {
         const path = "/";
         const body = "{}"
         const { req, res } = createMockContext(path, body, "GET")
@@ -164,6 +164,53 @@ describe('Redis', () => {
             nightlyDigest: { error: "No data available."},
             rawCurrentWeather: {error: "No data available."}
         });
+    })
+
+    it('should get data for /widget', async () => {
+        const path = "/widget";
+        const body = "{}"
+        const { req, res } = createMockContext(path, body, "GET")
+
+        const mockDb: Record<string, string> = {
+            'summit-status:current': JSON.stringify({ temp: 15 }),
+            'summit-status:hourly': JSON.stringify([{ hour: 1 }]),
+            'summit-status:daily': JSON.stringify([{ day: 'Mon' }]),
+            'summit-status:dome': JSON.stringify({ status: 'OPEN' }),
+            'summit-status:basic-weather-current': JSON.stringify({ condition: 'Sunny' }),
+            'summit-status:cloud-weather-current': JSON.stringify({ coverage: 'None' }),
+            'summit-status:raw-current-weather-data': JSON.stringify({ data_current: {
+                pictocode_detailed: 2
+            }}),
+            'summit-status:nightly-digest': JSON.stringify({
+                dome_open: true,
+                exposure_count: 7
+            })
+        };
+
+        redisClientMock.get.mockImplementation(async (key) => {
+            return mockDb[key] || null;
+        });
+
+        await mainHandler(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(200);
+        const responseData = res.send.mock.calls[0][0]; // body of first response
+
+        expect(responseData).toEqual({
+            weather: { pictocode: 2 },
+            exposures: { count: 7 },
+            dome: { isOpen: true }
+        });
+    })
+
+    it('should 404 for /blah', async() => {
+        const path = "/blah";
+        const body = "{}"
+        const { req, res } = createMockContext(path, body, "GET")
+
+        await mainHandler(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(404);
     })
 
     it('should return error for null redis keys', async () => {

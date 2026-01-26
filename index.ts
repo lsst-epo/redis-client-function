@@ -121,11 +121,27 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
             rawCurrentWeather: (rawCurrentWeatherSummitData == null) ? { error: "No data available." } : JSON.parse(rawCurrentWeatherSummitData),  // uses the raw `current` meteoblue package (rather than the forecast packages: basic and cloud)
             nightlyDigest: (nightlyDigestSummitData == null) ? { error: "No data available." } : JSON.parse(nightlyDigestSummitData)
         }
-        return res.status(200).send(summitData);
+        if (req.path == '/') {
+            return res.status(200).send(summitData);
+        } else if (req.path == '/widget') {
+            let widgetData = {
+                weather: { 
+                    pictocode: summitData.rawCurrentWeather?.data_current?.pictocode_detailed ?? 0 
+                },
+                exposures: { 
+                    count: summitData.nightlyDigest?.exposure_count ?? 0 
+                },
+                dome: { 
+                    isOpen: summitData.nightlyDigest?.dome_open ?? false
+                }
+            }
+            return res.status(200).send(widgetData);
+        } else {
+            return res.status(404).send("404 Not Found");
+        }
     } else {
         return res.status(400).send();
     }
-
 });
 
 async function getClient() {
