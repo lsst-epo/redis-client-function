@@ -91,8 +91,26 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
                 return res.status(204).json({ status: "SUCCESS", message: "No data to save! This usually means an error occurred while updating the data for the Nightly Digest API."});
             } else {
                 const cacheKey = `summit-status:nightly-digest`;
-                await client.set(cacheKey, JSON.stringify(req.body.data));
-                return res.status(200).json({ status: "SUCCESS", message: "Saved nightly digest data!"});
+                const newData = req.body.data;
+                const oldDataRaw = await client.get(cacheKey);
+                let oldData = { exposure_count: 0 }
+                if (oldDataRaw === null) {
+                    console.error(`No existing data found for redis key: ${cacheKey}`)
+                } else {
+                    try {
+                        oldData = JSON.parse(oldDataRaw);
+                    } catch (error) {
+                        console.error(`Could not parse oldData for redis key: ${cacheKey}`)
+                    }
+                }
+
+                const mergedData = {
+                    ...newData,
+                    exposure_count: (oldData.exposure_count || 0) + (newData.exposure_count || 0)
+                }
+                
+                await client.set(cacheKey, JSON.stringify(mergedData));
+                return res.status(200).json({ status: "SUCCESS", message: "Saved nightly digest data!", cachedData: JSON.stringify(mergedData)});
             }
         } else {
             return res.status(404).json({ status: "ERROR", message: "Incorrect endpoint."});
@@ -110,7 +128,7 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
         let basicCloudSummitData = await client.get('summit-status:cloud-weather-current');
         let rawCurrentWeatherSummitData = await client.get('summit-status:raw-current-weather-data'); // uses the raw `current` meteoblue package (rather than the forecast packages: basic and cloud)
         let nightlyDigestSummitData = await client.get('summit-status:nightly-digest');
-        let surveyData = await client.get('summit-status:summit-stats-current');
+        let surveyData = await client.get('summit-status:summit-survey-data');
         let alertData = await client.get('summit-status:alert-current')
 
         let summitData = {
@@ -128,6 +146,12 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
         if (req.path == '/') {
             return res.status(200).send(summitData);
         } else if (req.path == '/widgets') {
+            const exposureCount = summitData.nightlyDigest?.exposure_count ?? 0;
+            const totalExpectedExposureCount = process.env.TOTAL_EXPECTED_EXPOSURE_COUNT ?? summitData.survey?.totalExpectedExposureCount;
+            const surveyProgress = (totalExpectedExposureCount
+                ? (exposureCount / totalExpectedExposureCount)
+                : 0).toFixed(2);
+
             let widgetData = {
                 weather: { 
                     pictocode: summitData.rawCurrentWeather?.data_current?.pictocode_detailed ?? 0 
@@ -139,7 +163,7 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
                     isOpen: summitData.nightlyDigest?.dome_open ?? false
                 },
                 survey: {
-                    progress: summitData.survey?.progress ?? 0
+                    progress: surveyProgress
                 },
                 alert: {
                     count: summitData.alert?.count ?? 0
