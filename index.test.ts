@@ -17,7 +17,8 @@ describe('Redis', () => {
         get: jest.Mock;
         quit: jest.Mock;
         on: jest.Mock;
-
+        hGetAll: jest.Mock;
+        hSet: jest.Mock;
     }
 
     const createMockContext = (path: string, body: any, method: string) => {
@@ -58,7 +59,9 @@ describe('Redis', () => {
             set: jest.fn().mockResolvedValue('OK'),
             get: jest.fn().mockResolvedValue('1'),
             on: jest.fn(),
-            quit: jest.fn().mockResolvedValue(undefined)
+            quit: jest.fn().mockResolvedValue(undefined),
+            hGetAll: jest.fn().mockResolvedValue({}),
+            hSet: jest.fn().mockResolvedValue(1),
         }
 
         mockedCreateClient.mockReturnValue(redisClientMock as any);
@@ -193,6 +196,10 @@ describe('Redis', () => {
             return mockDb[key] || null;
         });
 
+        redisClientMock.hGetAll.mockResolvedValue({
+            '20260203': '7' // arbitrary date to make sum 7
+        });
+
         await mainHandler(req, res);
 
         expect(res.status).toHaveBeenCalledWith(200);
@@ -202,7 +209,7 @@ describe('Redis', () => {
             weather: { pictocode: 2 },
             exposure: { count: 7 },
             dome: { isOpen: true },
-            survey: { progress: 0 },
+            survey: { progress: "0.0" },
             alert: { count: 0 }
         });
     })
