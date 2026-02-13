@@ -146,7 +146,6 @@ describe('redis', () => {
 
     
     it('should get data for /', async () => {
-    it('should get data for /', async () => {
         const path = "/";
         const body = "{}"
         const { req, res } = createMockContext(path, body, "GET")
