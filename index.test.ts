@@ -8,7 +8,7 @@ jest.mock('@google-cloud/functions-framework');
 const mockedFF = ff as jest.Mocked<typeof ff>;
 const mockedCreateClient = createClient as jest.MockedFunction<typeof createClient>;
 
-describe('Redis', () => {
+describe('redis', () => {
     let mainHandler: (req: any, res: any) => Promise<void>;
 
     let redisClientMock: {
@@ -17,13 +17,16 @@ describe('Redis', () => {
         get: jest.Mock;
         quit: jest.Mock;
         on: jest.Mock;
-
+        del: jest.Mock;
+        hGetAll: jest.Mock;
+        hSet: jest.Mock;
     }
 
     const createMockContext = (path: string, body: any, method: string) => {
         const req = { 
             body: body,
             method: method,
+            query: {},
             path: path,
             headers: {
                 authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
@@ -58,14 +61,23 @@ describe('Redis', () => {
             set: jest.fn().mockResolvedValue('OK'),
             get: jest.fn().mockResolvedValue('1'),
             on: jest.fn(),
-            quit: jest.fn().mockResolvedValue(undefined)
+            del: jest.fn(),
+            quit: jest.fn().mockResolvedValue(undefined),
+            hGetAll: jest.fn().mockResolvedValue({}),
+            hSet: jest.fn().mockResolvedValue(1),
         }
 
         mockedCreateClient.mockReturnValue(redisClientMock as any);
 
         jest.spyOn(console, 'error').mockImplementation(() => {});
         jest.spyOn(console, 'log').mockImplementation(() => {});
+
+        jest.useFakeTimers().setSystemTime(new Date('2026-01-01'));
     })
+
+    afterAll(() => {
+        jest.useRealTimers();
+    });
 
     test.each([
         ['current',  '/current-stats', { temp: 0, wind: 0}],
@@ -134,6 +146,7 @@ describe('Redis', () => {
 
     
     it('should get data for /', async () => {
+    it('should get data for /', async () => {
         const path = "/";
         const body = "{}"
         const { req, res } = createMockContext(path, body, "GET")
@@ -163,7 +176,6 @@ describe('Redis', () => {
             cloudWeather: { coverage: 'None' },
             nightlyDigest: { error: "No data available." },
             rawCurrentWeather: { error: "No data available." },
-            survey: { error: "No data available." },
             alert: { error: "No data available." }
         });
     })
@@ -185,8 +197,9 @@ describe('Redis', () => {
             }}),
             'summit-status:nightly-digest': JSON.stringify({
                 dome_open: true,
-                exposure_count: 7
-            })
+                exposures_count: 7
+            }),
+            'summit-status:exposures': "7"
         };
 
         redisClientMock.get.mockImplementation(async (key) => {
@@ -202,10 +215,103 @@ describe('Redis', () => {
             weather: { pictocode: 2 },
             exposure: { count: 7 },
             dome: { isOpen: true },
-            survey: { progress: 0 },
+            survey: { progress: "0.0" },
             alert: { count: 0 }
         });
     })
+
+    it('/nightly-digest-stats should get data', async () => {
+        const path = "/nightly-digest-stats";
+        const body = {
+            data: { exposure_count: 5 },
+            params: "" // no override
+        };
+        
+        const { req, res } = createMockContext(path, body, "POST");
+
+        const today = new Date();
+        const todayStr = today.toISOString().split('T')[0];
+        
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+        const mockDb: Record<string, string> = {
+            'summit-status:exposures': "10",
+            'summit-status:date-last-run': yesterdayStr // yesterday (allows the test to proceed)
+        };
+
+        redisClientMock.get.mockImplementation(async (key) => mockDb[key] || null);
+        redisClientMock.set.mockResolvedValue("OK");
+
+        await mainHandler(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(200);
+
+        // verify accumulation: 10 (existing) + 5 (new) = 15
+        expect(redisClientMock.set).toHaveBeenCalledWith('summit-status:exposures', 15);
+        
+        // verify last run date was updated to today.
+        expect(redisClientMock.set).toHaveBeenCalledWith('summit-status:date-last-run', todayStr);
+
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            status: "SUCCESS"
+        }));
+    });
+
+    it('/nightly-digest-stats returns 400 if exposure_count is not an integer', async () => {
+        const path = '/nightly-digest-stats';
+        const body = { 
+            data: { exposure_count: "5" } // String instead of number
+        }
+        const { req, res } = createMockContext(path, body, "POST");
+    
+        await mainHandler(req, res);
+    
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ status: "ERROR" }));
+    });
+
+    it('/nightly-digest-stats returns 429 (too many requests) if already processed today and no override', async () => {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const path = '/nightly-digest-stats';
+        const body = { 
+            data: { exposure_count: 5 } 
+        }
+        const { req, res } = createMockContext(path, body, "POST");
+
+        // Mock Redis to say it already ran today
+        redisClientMock.get.mockImplementation(async (key) => {
+            if (key === 'summit-status:date-last-run') return todayStr;
+            return null;
+        });
+    
+        await mainHandler(req, res);
+    
+        expect(res.status).toHaveBeenCalledWith(429);
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ status: "SKIPPED" }));
+    });
+
+    it('/nightly-digest-stats returns 200 if reaccumulate ', async () => {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const path = '/nightly-digest-stats';
+        const body = { 
+            data: { exposure_count: 5 },
+            params: "reaccumulate"
+        }
+        const { req, res } = createMockContext(path, body, "POST");
+
+        redisClientMock.get.mockImplementation(async (key) => {
+            if (key === 'summit-status:date-last-run') return todayStr;
+            return "10"; // Existing exposures
+        });
+    
+        await mainHandler(req, res);
+    
+        expect(res.status).toHaveBeenCalledWith(200);
+        expect(redisClientMock.set).toHaveBeenCalledWith('summit-status:exposures', 15); // 10 (existing in redis) + 5 (new)
+    });
+
 
     it('should 404 for /blah', async() => {
         const path = "/blah";
@@ -237,7 +343,6 @@ describe('Redis', () => {
             cloudWeather: { error: "No data available." },
             nightlyDigest: { error: "No data available." },
             rawCurrentWeather: { error: "No data available." },
-            survey: { error: "No data available." },
             alert: { error: "No data available." }
         });
     })
@@ -249,5 +354,47 @@ describe('Redis', () => {
 
         expect(res.status).toHaveBeenCalledWith(204);
     })
+
+    describe('DELETE /', () => {
+        // test valid keys
+        test.each([
+            ['date-last-run', 'summit-status:date-last-run'],
+            ['exposures', 'summit-status:exposures']
+        ])('should successfully delete valid key: %s', async (queryKey, expectedRedisKey) => {
+            const { req, res } = createMockContext("/", {}, "DELETE");
+            req.query = { key: queryKey };
+    
+            redisClientMock.del.mockResolvedValue(1); // mock a redis success (on del)
+    
+            await mainHandler(req, res);
+    
+            expect(redisClientMock.del).toHaveBeenCalledWith(expectedRedisKey);
+            expect(res.status).toHaveBeenCalledWith(200);
+            expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+                status: "SUCCESS",
+                message: expect.stringContaining(expectedRedisKey)
+            }));
+        });
+    
+        // test incorrect or missing keys
+        test.each([
+            ['invalid-key'],
+            [''],
+            [undefined]
+        ])('should return 400 for invalid or missing key: %s', async (badKey) => {
+            const { req, res } = createMockContext("/", {}, "DELETE");
+            req.query = badKey !== undefined ? { key: badKey } : {};
+    
+            await mainHandler(req, res);
+    
+            expect(res.status).toHaveBeenCalledWith(400);
+            expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+                status: "ERROR",
+                message: expect.stringContaining("Valid keys are: date-last-run, exposures")
+            }));
+
+            expect(redisClientMock.del).not.toHaveBeenCalled(); // ensure we didn't delete anything from redis
+        });
+    });
         
 });
