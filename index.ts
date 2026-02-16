@@ -67,7 +67,7 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
                 pictocode: summitData.rawCurrentWeather?.data_current?.pictocode_detailed ?? 0 
             },
             exposure: { 
-                count: exposureCount ?? 0
+                count: exposureCount // already defaults to 0
             },
             dome: { 
                 isOpen: summitData.nightlyDigest?.dome_open ?? false
@@ -157,7 +157,7 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
             return res.status(404).json({ status: "ERROR", message: "Incorrect endpoint."});
         }
 
-        const payload = req.body[route.field];
+        const payload = req.body?.[route.field];
         if (payload === undefined) {
             return res.status(204).json({ 
                 status: "SUCCESS", 
@@ -168,7 +168,7 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
         // special case for nightly digest
         if (req.path === '/nightly-digest-stats') {
             // validate new daily value
-            const newValue = req.body?.data.exposure_count;
+            const newValue = req.body.data?.exposure_count ?? 0; // req.body guaranteed to exist due to the payload === undefined check above.
             const lastRunKey = 'summit-status:date-last-run';
             const todayUTC = new Date().toISOString().split('T')[0]; // Format: "YYYY-mm-dd"
             const lastRunDate = await client.get(lastRunKey);

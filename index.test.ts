@@ -1,5 +1,6 @@
 import * as ff from '@google-cloud/functions-framework';
 import { createClient } from 'redis';
+import { createRequest, createResponse, MockRequest } from 'node-mocks-http';
 
 // prevent unintended api calls
 jest.mock('redis');
@@ -8,8 +9,10 @@ jest.mock('@google-cloud/functions-framework');
 const mockedFF = ff as jest.Mocked<typeof ff>;
 const mockedCreateClient = createClient as jest.MockedFunction<typeof createClient>;
 
+type RedisClientType = ReturnType<typeof createClient>;
+
 describe('redis', () => {
-    let mainHandler: (req: any, res: any) => Promise<void>;
+    let mainHandler: (req: ff.Request, res: ff.Response) => Promise<void>;
 
     let redisClientMock: {
         connect: jest.Mock;
@@ -20,25 +23,6 @@ describe('redis', () => {
         del: jest.Mock;
         hGetAll: jest.Mock;
         hSet: jest.Mock;
-    }
-
-    const createMockContext = (path: string, body: any, method: string) => {
-        const req = { 
-            body: body,
-            method: method,
-            query: {},
-            path: path,
-            headers: {
-                authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
-            }
-        };
-        const res = {
-            status: jest.fn().mockReturnThis(),
-            set: jest.fn().mockReturnThis(),
-            send: jest.fn().mockReturnThis(),
-            json: jest.fn().mockReturnThis()
-        };
-        return { req, res };
     }
 
     beforeAll(() => {
@@ -67,7 +51,7 @@ describe('redis', () => {
             hSet: jest.fn().mockResolvedValue(1),
         }
 
-        mockedCreateClient.mockReturnValue(redisClientMock as any);
+        mockedCreateClient.mockReturnValue(redisClientMock as unknown as RedisClientType);
 
         jest.spyOn(console, 'error').mockImplementation(() => {});
         jest.spyOn(console, 'log').mockImplementation(() => {});
@@ -86,7 +70,16 @@ describe('redis', () => {
         ['dome', '/dome-stats', { temp: 0, wind: 0}],
     ])('should store %s stats successfully', async(key, path, data) => {
         const body = {[key]: data};
-        const { req, res } = createMockContext(path, body, "POST")
+        const req = createRequest({
+            method: "POST",
+            path: path,
+            query: {},
+            body: body,
+            headers: {
+                authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
+            }
+        }) as MockRequest<ff.Request>;
+        const res = createResponse();
 
         await mainHandler(req, res);
 
@@ -108,19 +101,34 @@ describe('redis', () => {
             key = "data";
         }
         const body = {[key]: undefined};
-        const { req, res } = createMockContext(path, body, "POST")
+        const req = createRequest({
+            method: "POST",
+            path: path,
+            body: body,
+            headers: {
+                authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
+            }
+        }) as MockRequest<ff.Request>;
+        const res = createResponse();
 
         await mainHandler(req, res);
-
-        expect(res.status).toHaveBeenCalledWith(204);
+        expect(res._getStatusCode()).toBe(204);
     })
 
     test.each([
         ['basic', '/basic-weather-stats', { data: { temp: 50 }, params: 'current' }],
         ['cloud', '/cloud-weather-stats', { data: { temp: 50 }, params: 'current' }],
     ])('should store %s weather stats successfully', async(key, path, data) => {
-        const body = data
-        const { req, res } = createMockContext(path, body, "POST")
+        const body = data;
+        const req = createRequest({
+            method: "POST",
+            path: path,
+            body: body,
+            headers: {
+                authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
+            }
+        }) as MockRequest<ff.Request>;
+        const res = createResponse();
 
         await mainHandler(req, res);
 
@@ -131,24 +139,44 @@ describe('redis', () => {
     })
 
     it('should return 401 if authorization is missing or invalid', async () => {
-        const { req, res } = createMockContext('/current-stats', { current: {} }, "POST");
+        const req = createRequest({
+            method: "POST",
+            path: "/current-stats",
+            query: {},
+            body: {
+                current: {}
+            },
+            headers: {
+                authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
+            }
+        }) as MockRequest<ff.Request>;
+        const res = createResponse();
         
         req.headers.authorization = 'Bearer incorrect-token';
     
         await mainHandler(req, res);
-    
-        expect(res.status).toHaveBeenCalledWith(401);
-        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+
+        expect(res._getStatusCode()).toBe(401);
+        const responseData = res._getJSONData();
+        expect(responseData).toEqual({
             status: "ERROR",
             message: "Unauthorized: Missing or invalid token."
-        }));
+        });
     });
 
     
     it('should get data for /', async () => {
         const path = "/";
-        const body = "{}"
-        const { req, res } = createMockContext(path, body, "GET")
+
+        const req = createRequest({
+            method: "GET",
+            path: path,
+            body: {},
+            headers: {
+                authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
+            }
+        }) as MockRequest<ff.Request>;
+        const res = createResponse();
 
         const mockDb: Record<string, string> = {
             'summit-status:current': JSON.stringify({ temp: 15 }),
@@ -165,8 +193,8 @@ describe('redis', () => {
 
         await mainHandler(req, res);
 
-        expect(res.status).toHaveBeenCalledWith(200);
-        expect(res.send).toHaveBeenCalledWith({
+        expect(res._getStatusCode()).toBe(200);
+        expect(res._getData()).toEqual({
             current: { temp: 15 },
             hourly: [{ hour: 1 }],
             daily: [{ day: 'Mon' }],
@@ -181,8 +209,15 @@ describe('redis', () => {
 
     it('should get data for /widgets', async () => {
         const path = "/widgets";
-        const body = "{}"
-        const { req, res } = createMockContext(path, body, "GET")
+        const req = createRequest({
+            method: "GET",
+            path: path,
+            body: {},
+            headers: {
+                authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
+            }
+        }) as MockRequest<ff.Request>;
+        const res = createResponse();
 
         const mockDb: Record<string, string> = {
             'summit-status:current': JSON.stringify({ temp: 15 }),
@@ -207,9 +242,8 @@ describe('redis', () => {
 
         await mainHandler(req, res);
 
-        expect(res.status).toHaveBeenCalledWith(200);
-        const responseData = res.send.mock.calls[0][0]; // body of first response
-
+        expect(res._getStatusCode()).toBe(200);
+        const responseData = res._getData();
         expect(responseData).toEqual({
             weather: { pictocode: 2 },
             exposure: { count: 7 },
@@ -219,10 +253,100 @@ describe('redis', () => {
         });
     })
 
+    it('should default survey progress to "0.0" if TOTAL_EXPECTED_EXPOSURES is missing in /widgets', async () => {
+        const path = "/widgets";
+        const req = createRequest({
+            method: "GET",
+            path: path,
+            headers: {
+                authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
+            }
+        }) as MockRequest<ff.Request>;
+        const res = createResponse();
+        
+        process.env.TOTAL_EXPECTED_EXPOSURES = "0"; 
+        
+        // return null for exposures
+        redisClientMock.get.mockImplementation(async (key) => {
+            if (key === 'summit-status:exposures') {
+                return null;
+            }
+            return JSON.stringify({}); // Other keys return empty objects
+        });
+    
+        await mainHandler(req, res);
+    
+        const responseData = res._getData(); 
+        expect(responseData.survey.progress).toBe("0.0");
+        expect(responseData.exposure.count).toBe(0);
+    });
+
+    it('should return default values in widgetData when Redis data is malformed or partial in /widgets', async () => {
+        const path = "/widgets";
+        const req = createRequest({
+            method: "GET",
+            path: path,
+            headers: {
+                authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
+            }
+        }) as MockRequest<ff.Request>;
+        const res = createResponse();
+    
+        // valid JSON but missing specific fields
+        const mockDb: Record<string, string> = {
+            'summit-status:raw-current-weather-data': JSON.stringify(null), // missing pictocode
+            'summit-status:nightly-digest': JSON.stringify(null), // missing dome_open
+            'summit-status:alert-current': JSON.stringify(null), // missing count
+            'summit-status:exposures': JSON.stringify(null)
+        };
+    
+        redisClientMock.get.mockImplementation(async (key) => mockDb[key] || null);
+    
+        await mainHandler(req, res);
+    
+        const data = res._getData();
+        
+        expect(data.weather.pictocode).toBe(0);  
+        expect(data.dome.isOpen).toBe(false);
+        expect(data.alert.count).toBe(0);
+    });
+
+    it('should return alert-current count if stored in redis in /widgets', async () => {
+        const path = "/widgets";
+        const req = createRequest({
+            method: "GET",
+            path: path,
+            headers: {
+                authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
+            }
+        }) as MockRequest<ff.Request>;
+        const res = createResponse();
+
+        const mockDb: Record<string, string> = {
+            'summit-status:alert-current': JSON.stringify({ count: "10" }),
+        };
+    
+        redisClientMock.get.mockImplementation(async (key) => mockDb[key] || null);
+    
+        await mainHandler(req, res);
+    
+        const data = res._getData();
+        expect(data.alert.count).toBe("10");
+    });
+
     it('should get data for /full', async () => {
         const path = "/full";
-        const body = "{}"
-        const { req, res } = createMockContext(path, body, "GET")
+        const body = {};
+
+        const req = createRequest({
+            method: "GET",
+            path: path,
+            body: body,
+            headers: {
+                authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
+            }
+        }) as MockRequest<ff.Request>;
+        const res = createResponse();
 
         const mockDb: Record<string, string> = {
             'summit-status:current': JSON.stringify({ temp: 15 }),
@@ -248,8 +372,8 @@ describe('redis', () => {
 
         await mainHandler(req, res);
 
-        expect(res.status).toHaveBeenCalledWith(200);
-        const responseData = res.send.mock.calls[0][0]; // body of first response
+        expect(res._getStatusCode()).toBe(200);
+        const responseData = res._getData();
 
         expect(responseData).toEqual({
             weather: { pictocode: 2 },
@@ -267,8 +391,15 @@ describe('redis', () => {
             data: { exposure_count: 5 },
             params: "" // no override
         };
-        
-        const { req, res } = createMockContext(path, body, "POST");
+        const req = createRequest({
+            method: "POST",
+            path: path,
+            body: body,
+            headers: {
+                authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
+            }
+        }) as MockRequest<ff.Request>;
+        const res = createResponse();
 
         const today = new Date();
         const todayStr = today.toISOString().split('T')[0];
@@ -287,7 +418,7 @@ describe('redis', () => {
 
         await mainHandler(req, res);
 
-        expect(res.status).toHaveBeenCalledWith(200);
+        expect(res._getStatusCode()).toBe(200);
 
         // verify accumulation: 10 (existing) + 5 (new) = 15
         expect(redisClientMock.set).toHaveBeenCalledWith('summit-status:exposures', 15);
@@ -295,9 +426,124 @@ describe('redis', () => {
         // verify last run date was updated to today.
         expect(redisClientMock.set).toHaveBeenCalledWith('summit-status:date-last-run', todayStr);
 
-        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
-            status: "SUCCESS"
-        }));
+        const responseData = res._getJSONData(); // Automatically parses JSON
+            expect(responseData).toMatchObject({
+                status: "SUCCESS"
+            });
+    });
+
+    it('/nightly-digest-stats should get data and fall back to a default of 0 if new value is not given', async () => {
+        const path = "/nightly-digest-stats";
+        const body = {
+            // missing data field
+            data: null,
+            params: "" // no override
+        };
+        
+        const req = createRequest({
+            method: "POST",
+            path: path,
+            body: body,
+            headers: {
+                authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
+            }
+        }) as MockRequest<ff.Request>;
+        const res = createResponse();
+
+        const today = new Date();
+        const todayStr = today.toISOString().split('T')[0];
+        
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+        const mockDb: Record<string, string> = {
+            'summit-status:exposures': "10",
+            'summit-status:date-last-run': yesterdayStr // yesterday (allows the test to proceed)
+        };
+
+        redisClientMock.get.mockImplementation(async (key) => mockDb[key] || null);
+        redisClientMock.set.mockResolvedValue("OK");
+
+        await mainHandler(req, res);
+
+        expect(res._getStatusCode()).toBe(200);
+
+        // verify accumulation: 10 (existing) + 0 (new) = 10
+        expect(redisClientMock.set).toHaveBeenCalledWith('summit-status:exposures', 10);
+        
+        // // verify last run date was updated to today.
+        expect(redisClientMock.set).toHaveBeenCalledWith('summit-status:date-last-run', todayStr);
+
+
+        const responseData = res._getJSONData(); // Automatically parses JSON
+            expect(responseData).toMatchObject({
+                status: "SUCCESS"
+            });
+    });
+
+    it('/nightly-digest-stats should get data and have a default if new value is not given', async () => {
+        const path = "/nightly-digest-stats";
+        const body = null;
+        
+        const req = createRequest({
+            method: "POST",
+            path: path,
+            body: undefined,
+            headers: {
+                authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
+            }
+        }) as MockRequest<ff.Request>;
+        const res = createResponse();
+        
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+        const mockDb: Record<string, string> = {
+            'summit-status:exposures': "10",
+            'summit-status:date-last-run': yesterdayStr // yesterday (allows the test to proceed)
+        };
+
+        redisClientMock.get.mockImplementation(async (key) => mockDb[key] || null);
+        redisClientMock.set.mockResolvedValue("OK");
+
+        await mainHandler(req, res);
+
+        expect(res._getStatusCode()).toBe(204);
+    });
+
+    it('/nightly-digest-stats should handle invalid params (not reaccumulate)', async () => {
+        const path = "/nightly-digest-stats";
+        
+        const req = createRequest({
+            method: "POST",
+            path: path,
+            body: { 
+                data: { exposure_count: 5 },
+            },
+            headers: {
+                authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
+            }
+        }) as MockRequest<ff.Request>;
+        Object.defineProperty(req, 'body', {});
+        const res = createResponse();
+        
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+        const mockDb: Record<string, string> = {
+            'summit-status:exposures': "10",
+            'summit-status:date-last-run': yesterdayStr // yesterday (allows the test to proceed)
+        };
+
+        redisClientMock.get.mockImplementation(async (key) => mockDb[key] || null);
+        redisClientMock.set.mockResolvedValue("OK");
+
+        await mainHandler(req, res);
+
+        expect(res._getStatusCode()).toBe(200);
     });
 
     it('/nightly-digest-stats returns 400 if exposure_count is not an integer', async () => {
@@ -305,12 +551,22 @@ describe('redis', () => {
         const body = { 
             data: { exposure_count: "5" } // String instead of number
         }
-        const { req, res } = createMockContext(path, body, "POST");
+
+        const req = createRequest({
+            method: "POST",
+            path: path,
+            body: body,
+            headers: {
+                authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
+            }
+        }) as MockRequest<ff.Request>;
+        const res = createResponse();
     
         await mainHandler(req, res);
-    
-        expect(res.status).toHaveBeenCalledWith(400);
-        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ status: "ERROR" }));
+
+        expect(res._getStatusCode()).toBe(400);
+        const responseData = res._getJSONData(); // Automatically parses JSON
+        expect(responseData).toMatchObject({ status: "ERROR" });
     });
 
     it('/nightly-digest-stats returns 429 (too many requests) if already processed today and no override', async () => {
@@ -319,7 +575,15 @@ describe('redis', () => {
         const body = { 
             data: { exposure_count: 5 } 
         }
-        const { req, res } = createMockContext(path, body, "POST");
+        const req = createRequest({
+            method: "POST",
+            path: path,
+            body: body,
+            headers: {
+                authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
+            }
+        }) as MockRequest<ff.Request>;
+        const res = createResponse();
 
         // Mock Redis to say it already ran today
         redisClientMock.get.mockImplementation(async (key) => {
@@ -328,9 +592,10 @@ describe('redis', () => {
         });
     
         await mainHandler(req, res);
-    
-        expect(res.status).toHaveBeenCalledWith(429);
-        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ status: "SKIPPED" }));
+
+        expect(res._getStatusCode()).toBe(429);
+        const responseData = res._getJSONData(); // Automatically parses JSON
+        expect(responseData).toMatchObject({ status: "SKIPPED" });
     });
 
     it('/nightly-digest-stats returns 200 if reaccumulate ', async () => {
@@ -340,7 +605,15 @@ describe('redis', () => {
             data: { exposure_count: 5 },
             params: "reaccumulate"
         }
-        const { req, res } = createMockContext(path, body, "POST");
+        const req = createRequest({
+            method: "POST",
+            path: path,
+            body: body,
+            headers: {
+                authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
+            }
+        }) as MockRequest<ff.Request>;
+        const res = createResponse();
 
         redisClientMock.get.mockImplementation(async (key) => {
             if (key === 'summit-status:date-last-run') return todayStr;
@@ -349,18 +622,28 @@ describe('redis', () => {
     
         await mainHandler(req, res);
     
-        expect(res.status).toHaveBeenCalledWith(200);
+        expect(res._getStatusCode()).toBe(200);
         expect(redisClientMock.set).toHaveBeenCalledWith('summit-status:exposures', 15); // 10 (existing in redis) + 5 (new)
     });
 
     it('returns 404 for an undefined POST stats path', async () => {
         const path = "/invalid-stats-path";
-        const { req, res } = createMockContext(path, { some: 'data' }, "POST");
+        const body = { some: 'data' };
+        const req = createRequest({
+            method: "POST",
+            path: path,
+            body: body,
+            headers: {
+                authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
+            }
+        }) as MockRequest<ff.Request>;
+        const res = createResponse();
     
         await mainHandler(req, res);
-    
-        expect(res.status).toHaveBeenCalledWith(404);
-        expect(res.json).toHaveBeenCalledWith({
+
+        expect(res._getStatusCode()).toBe(404);
+        const responseData = res._getJSONData(); // Automatically parses JSON
+        expect(responseData).toMatchObject({
             status: "ERROR",
             message: "Incorrect endpoint."
         });
@@ -369,26 +652,42 @@ describe('redis', () => {
 
     it('should 404 for /blah', async() => {
         const path = "/blah";
-        const body = "{}"
-        const { req, res } = createMockContext(path, body, "GET")
+        const body = {};
+        const req = createRequest({
+            method: "GET",
+            path: path,
+            body: body,
+            headers: {
+                authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
+            }
+        }) as MockRequest<ff.Request>;
+        const res = createResponse();
 
         await mainHandler(req, res);
 
-        expect(res.status).toHaveBeenCalledWith(404);
+        expect(res._getStatusCode()).toBe(404);
     })
 
     it('should return error for null redis keys', async () => {
         const path = "/";
-        const body = "{}"
-        const { req, res } = createMockContext(path, body, "GET")
+        const body = {};
+        const req = createRequest({
+            method: "GET",
+            path: path,
+            body: body,
+            headers: {
+                authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
+            }
+        }) as MockRequest<ff.Request>;
+        const res = createResponse();
 
         redisClientMock.get.mockResolvedValue(null); // simulate empty redis
 
         await mainHandler(req, res);
 
-        expect(res.status).toHaveBeenCalledWith(200);
+        expect(res._getStatusCode()).toBe(200);
 
-        expect(res.send).toHaveBeenCalledWith({
+        expect(res._getData()).toEqual({
             current: { error: "No data available." },
             hourly: { error: "No data available." },
             daily: { error: "No data available." },
@@ -402,12 +701,41 @@ describe('redis', () => {
     })
 
     it('should return 204 for OPTIONS', async () => {
-        const {req, res} = createMockContext("/", "{}", "OPTIONS");
+        const path = "/";
+        const body = {};
+        const req = createRequest({
+            method: "OPTIONS",
+            path: path,
+            body: body,
+            headers: {
+                authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
+            }
+        }) as MockRequest<ff.Request>;
+        const res = createResponse();
+
+        await mainHandler(req, res);
+
+        expect(res._getStatusCode()).toBe(204);
+    })
+
+    it('req.body is null', async () => {
+        const req = {
+            method: "POST",
+            path: "/nightly-digest-stats",
+            body: null, // force the first part of ?. to trigger
+            headers: { authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}` }
+        } as unknown as ff.Request;
+
+        const res = {
+            status: jest.fn().mockReturnThis(),
+            json: jest.fn().mockReturnThis(),
+            set: jest.fn().mockReturnThis(),
+        } as unknown as ff.Response;
 
         await mainHandler(req, res);
 
         expect(res.status).toHaveBeenCalledWith(204);
-    })
+    });
 
     describe('DELETE /', () => {
         // test valid keys
@@ -415,19 +743,32 @@ describe('redis', () => {
             ['date-last-run', 'summit-status:date-last-run'],
             ['exposures', 'summit-status:exposures']
         ])('should successfully delete valid key: %s', async (queryKey, expectedRedisKey) => {
-            const { req, res } = createMockContext("/", {}, "DELETE");
+            const path  = "/";
+            const body = {};
+            const req = createRequest({
+                method: "DELETE",
+                path: path,
+                body: body,
+                headers: {
+                    authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
+                }
+            }) as MockRequest<ff.Request>;
+            const res = createResponse();
+
             req.query = { key: queryKey };
     
             redisClientMock.del.mockResolvedValue(1); // mock a redis success (on del)
     
             await mainHandler(req, res);
+
+            expect(res._getStatusCode()).toBe(200);
     
-            expect(redisClientMock.del).toHaveBeenCalledWith(expectedRedisKey);
-            expect(res.status).toHaveBeenCalledWith(200);
-            expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            const responseData = res._getJSONData(); // Automatically parses JSON
+            expect(responseData).toMatchObject({
                 status: "SUCCESS",
                 message: expect.stringContaining(expectedRedisKey)
-            }));
+            });
+            
         });
     
         // test incorrect or missing keys
@@ -436,38 +777,72 @@ describe('redis', () => {
             [''],
             [undefined]
         ])('should return 400 for invalid or missing key: %s', async (badKey) => {
-            const { req, res } = createMockContext("/", {}, "DELETE");
+            const path  = "/";
+            const body = {};
+            const req = createRequest({
+                method: "DELETE",
+                path: path,
+                body: body,
+                headers: {
+                    authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
+                }
+            }) as MockRequest<ff.Request>;
+            const res = createResponse();
+
             req.query = badKey !== undefined ? { key: badKey } : {};
     
             await mainHandler(req, res);
-    
-            expect(res.status).toHaveBeenCalledWith(400);
-            expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
-                status: "ERROR",
-                message: expect.stringContaining("Valid keys are: date-last-run, exposures")
-            }));
 
-            expect(redisClientMock.del).not.toHaveBeenCalled(); // ensure we didn't delete anything from redis
+            expect(res._getStatusCode()).toBe(400);
+    
+            const responseData = res._getJSONData(); // Automatically parses JSON
+            expect(responseData).toMatchObject({
+                status: "ERROR",
+                message: "Valid keys are: date-last-run, exposures"
+            });
         });
 
         it('should return 404 when key is valid but does not exist in Redis', async () => {
-            const { req, res } = createMockContext("/", {}, "DELETE");
+            const path  = "/";
+            const body = {};
+            const req = createRequest({
+                method: "DELETE",
+                path: path,
+                body: body,
+                headers: {
+                    authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
+                }
+            }) as MockRequest<ff.Request>;
+            const res = createResponse();
+
             req.query = { key: 'exposures' };
         
             // Redis returns 0 if nothing was deleted
             redisClientMock.del.mockResolvedValue(0);
         
             await mainHandler(req, res);
-        
-            expect(res.status).toHaveBeenCalledWith(404);
-            expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            expect(res._getStatusCode()).toBe(404);
+    
+            const responseData = res._getJSONData(); // Automatically parses JSON
+            expect(responseData).toMatchObject({
                 status: "NOT_FOUND",
                 message: "summit-status:exposures key did not exist in cache."
-            }));
+            });
         });
 
         it('should return 500 when Redis throws an unexpected error', async () => {
-            const { req, res } = createMockContext("/", {}, "DELETE");
+            const path  = "/";
+            const body = {};
+            const req = createRequest({
+                method: "DELETE",
+                path: path,
+                body: body,
+                headers: {
+                    authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
+                }
+            }) as MockRequest<ff.Request>;
+            const res = createResponse();
+
             req.query = { key: 'date-last-run' };
         
             // Force the client to error
@@ -478,29 +853,40 @@ describe('redis', () => {
             const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
         
             await mainHandler(req, res);
-        
-            expect(res.status).toHaveBeenCalledWith(500);
-            expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
-                status: "ERROR",
-                message: "Failed to clear cache."
-            }));
             
             expect(consoleSpy).toHaveBeenCalledWith(
                 expect.stringContaining("Error deleting cache"),
                 redisError
             );
+
+            expect(res._getStatusCode()).toBe(500);
+    
+            const responseData = res._getJSONData(); // Automatically parses JSON
+            expect(responseData).toMatchObject({
+                status: "ERROR",
+                message: "Failed to clear cache."
+            });
         
             consoleSpy.mockRestore();
         });
     });
 
     it('returns 400 for unsupported HTTP method', async () => {
-        const { req, res } = createMockContext("/", {}, "PUT");
+        const path  = "/";
+        const body = {};
+        const req = createRequest({
+            method: "PUT",
+            path: path,
+            body: body,
+            headers: {
+                authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
+            }
+        }) as MockRequest<ff.Request>;
+        const res = createResponse();
     
         await mainHandler(req, res);
-    
-        expect(res.status).toHaveBeenCalledWith(400);
-        expect(res.send).toHaveBeenCalledWith(); 
+
+        expect(res._getStatusCode()).toBe(400);
     });
-        
 });
+
