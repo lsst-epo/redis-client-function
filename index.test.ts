@@ -219,6 +219,48 @@ describe('redis', () => {
         });
     })
 
+    it('should get data for /full', async () => {
+        const path = "/full";
+        const body = "{}"
+        const { req, res } = createMockContext(path, body, "GET")
+
+        const mockDb: Record<string, string> = {
+            'summit-status:current': JSON.stringify({ temp: 15 }),
+            'summit-status:hourly': JSON.stringify([{ hour: 1 }]),
+            'summit-status:daily': JSON.stringify([{ day: 'Mon' }]),
+            'summit-status:dome': JSON.stringify({ status: 'OPEN' }),
+            'summit-status:basic-weather-current': JSON.stringify({ condition: 'Sunny' }),
+            'summit-status:cloud-weather-current': JSON.stringify({ coverage: 'None' }),
+            'summit-status:raw-current-weather-data': JSON.stringify({ data_current: {
+                pictocode_detailed: 2
+            }}),
+            'summit-status:nightly-digest': JSON.stringify({
+                dome_open: true,
+                exposures_count: 7
+            }),
+            'summit-status:exposures': "7",
+            'summit-status:date-last-run': '2026-02-15',
+        };
+
+        redisClientMock.get.mockImplementation(async (key) => {
+            return mockDb[key] || null;
+        });
+
+        await mainHandler(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(200);
+        const responseData = res.send.mock.calls[0][0]; // body of first response
+
+        expect(responseData).toEqual({
+            weather: { pictocode: 2 },
+            exposure: { count: 7 },
+            dome: { isOpen: true },
+            survey: { progress: "0.0" },
+            alert: { count: 0 },
+            dateLastRun: "2026-02-15"
+        });
+    })
+
     it('/nightly-digest-stats should get data', async () => {
         const path = "/nightly-digest-stats";
         const body = {
@@ -311,6 +353,19 @@ describe('redis', () => {
         expect(redisClientMock.set).toHaveBeenCalledWith('summit-status:exposures', 15); // 10 (existing in redis) + 5 (new)
     });
 
+    it('returns 404 for an undefined POST stats path', async () => {
+        const path = "/invalid-stats-path";
+        const { req, res } = createMockContext(path, { some: 'data' }, "POST");
+    
+        await mainHandler(req, res);
+    
+        expect(res.status).toHaveBeenCalledWith(404);
+        expect(res.json).toHaveBeenCalledWith({
+            status: "ERROR",
+            message: "Incorrect endpoint."
+        });
+    });
+
 
     it('should 404 for /blah', async() => {
         const path = "/blah";
@@ -394,6 +449,58 @@ describe('redis', () => {
 
             expect(redisClientMock.del).not.toHaveBeenCalled(); // ensure we didn't delete anything from redis
         });
+
+        it('should return 404 when key is valid but does not exist in Redis', async () => {
+            const { req, res } = createMockContext("/", {}, "DELETE");
+            req.query = { key: 'exposures' };
+        
+            // Redis returns 0 if nothing was deleted
+            redisClientMock.del.mockResolvedValue(0);
+        
+            await mainHandler(req, res);
+        
+            expect(res.status).toHaveBeenCalledWith(404);
+            expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+                status: "NOT_FOUND",
+                message: "summit-status:exposures key did not exist in cache."
+            }));
+        });
+
+        it('should return 500 when Redis throws an unexpected error', async () => {
+            const { req, res } = createMockContext("/", {}, "DELETE");
+            req.query = { key: 'date-last-run' };
+        
+            // Force the client to error
+            const redisError = new Error("Connection lost");
+            redisClientMock.del.mockRejectedValue(redisError);
+        
+            // keep the test output clean
+            const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+        
+            await mainHandler(req, res);
+        
+            expect(res.status).toHaveBeenCalledWith(500);
+            expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+                status: "ERROR",
+                message: "Failed to clear cache."
+            }));
+            
+            expect(consoleSpy).toHaveBeenCalledWith(
+                expect.stringContaining("Error deleting cache"),
+                redisError
+            );
+        
+            consoleSpy.mockRestore();
+        });
+    });
+
+    it('returns 400 for unsupported HTTP method', async () => {
+        const { req, res } = createMockContext("/", {}, "PUT");
+    
+        await mainHandler(req, res);
+    
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.send).toHaveBeenCalledWith(); 
     });
         
 });
