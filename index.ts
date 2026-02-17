@@ -254,5 +254,5 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
             });
         }
     }
-    return res.status(400).send();
+    return res.status(400).json({ status: "error", reason: "bad request" })
 });
