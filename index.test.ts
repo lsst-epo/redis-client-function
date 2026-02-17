@@ -1,6 +1,6 @@
 import * as ff from '@google-cloud/functions-framework';
 import { createClient } from 'redis';
-import { createRequest, createResponse, MockRequest } from 'node-mocks-http';
+import { createRequest, createResponse, MockRequest, MockResponse } from 'node-mocks-http';
 
 // prevent unintended api calls
 jest.mock('redis');
@@ -25,11 +25,17 @@ describe('redis', () => {
         hSet: jest.Mock;
     }
 
+    let req: MockRequest<ff.Request>;
+    let res: MockResponse<ff.Response>;
+
     beforeAll(() => {
         // Intercept registration of handlers and save it as mainHandler
         mockedFF.http.mockImplementation((name, handler) => {
             mainHandler = handler;
         });
+
+        req = createRequest();
+        res = createResponse();
     
         // Isolate module loading to force trigger registration
         jest.isolateModules(() => {
@@ -70,7 +76,7 @@ describe('redis', () => {
         ['dome', '/dome-stats', { temp: 0, wind: 0}],
     ])('should store %s stats successfully', async(key, path, data) => {
         const body = {[key]: data};
-        const req = createRequest({
+        req = createRequest({
             method: "POST",
             path: path,
             query: {},
@@ -78,8 +84,8 @@ describe('redis', () => {
             headers: {
                 authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
             }
-        }) as MockRequest<ff.Request>;
-        const res = createResponse();
+        });
+        res = createResponse();
 
         await mainHandler(req, res);
 
@@ -101,15 +107,15 @@ describe('redis', () => {
             key = "data";
         }
         const body = {[key]: undefined};
-        const req = createRequest({
+        req = createRequest({
             method: "POST",
             path: path,
             body: body,
             headers: {
                 authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
             }
-        }) as MockRequest<ff.Request>;
-        const res = createResponse();
+        });
+        res = createResponse();
 
         await mainHandler(req, res);
         expect(res._getStatusCode()).toBe(204);
@@ -120,15 +126,15 @@ describe('redis', () => {
         ['cloud', '/cloud-weather-stats', { data: { temp: 50 }, params: 'current' }],
     ])('should store %s weather stats successfully', async(key, path, data) => {
         const body = data;
-        const req = createRequest({
+        req = createRequest({
             method: "POST",
             path: path,
             body: body,
             headers: {
                 authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
             }
-        }) as MockRequest<ff.Request>;
-        const res = createResponse();
+        });
+        res = createResponse();
 
         await mainHandler(req, res);
 
@@ -139,7 +145,7 @@ describe('redis', () => {
     })
 
     it('should return 401 if authorization is missing or invalid', async () => {
-        const req = createRequest({
+        req = createRequest({
             method: "POST",
             path: "/current-stats",
             query: {},
@@ -149,8 +155,8 @@ describe('redis', () => {
             headers: {
                 authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
             }
-        }) as MockRequest<ff.Request>;
-        const res = createResponse();
+        });
+        res = createResponse();
         
         req.headers.authorization = 'Bearer incorrect-token';
     
@@ -168,15 +174,15 @@ describe('redis', () => {
     it('should get data for /', async () => {
         const path = "/";
 
-        const req = createRequest({
+        req = createRequest({
             method: "GET",
             path: path,
             body: {},
             headers: {
                 authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
             }
-        }) as MockRequest<ff.Request>;
-        const res = createResponse();
+        });
+        res = createResponse();
 
         const mockDb: Record<string, string> = {
             'summit-status:current': JSON.stringify({ temp: 15 }),
@@ -209,15 +215,15 @@ describe('redis', () => {
 
     it('should get data for /widgets', async () => {
         const path = "/widgets";
-        const req = createRequest({
+        req = createRequest({
             method: "GET",
             path: path,
             body: {},
             headers: {
                 authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
             }
-        }) as MockRequest<ff.Request>;
-        const res = createResponse();
+        });
+        res = createResponse();
 
         const mockDb: Record<string, string> = {
             'summit-status:current': JSON.stringify({ temp: 15 }),
@@ -255,14 +261,14 @@ describe('redis', () => {
 
     it('should default survey progress to "0.0" if TOTAL_EXPECTED_EXPOSURES is missing in /widgets', async () => {
         const path = "/widgets";
-        const req = createRequest({
+        req = createRequest({
             method: "GET",
             path: path,
             headers: {
                 authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
             }
-        }) as MockRequest<ff.Request>;
-        const res = createResponse();
+        });
+        res = createResponse();
         
         process.env.TOTAL_EXPECTED_EXPOSURES = "0"; 
         
@@ -283,14 +289,14 @@ describe('redis', () => {
 
     it('should return default values in widgetData when Redis data is malformed or partial in /widgets', async () => {
         const path = "/widgets";
-        const req = createRequest({
+        req = createRequest({
             method: "GET",
             path: path,
             headers: {
                 authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
             }
-        }) as MockRequest<ff.Request>;
-        const res = createResponse();
+        });
+        res = createResponse();
     
         // valid JSON but missing specific fields
         const mockDb: Record<string, string> = {
@@ -313,14 +319,14 @@ describe('redis', () => {
 
     it('should return alert-current count if stored in redis in /widgets', async () => {
         const path = "/widgets";
-        const req = createRequest({
+        req = createRequest({
             method: "GET",
             path: path,
             headers: {
                 authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
             }
-        }) as MockRequest<ff.Request>;
-        const res = createResponse();
+        }) ;
+        res= createResponse();
 
         const mockDb: Record<string, string> = {
             'summit-status:alert-current': JSON.stringify({ count: "10" }),
@@ -338,15 +344,15 @@ describe('redis', () => {
         const path = "/full";
         const body = {};
 
-        const req = createRequest({
+        req = createRequest({
             method: "GET",
             path: path,
             body: body,
             headers: {
                 authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
             }
-        }) as MockRequest<ff.Request>;
-        const res = createResponse();
+        });
+        res = createResponse();
 
         const mockDb: Record<string, string> = {
             'summit-status:current': JSON.stringify({ temp: 15 }),
@@ -391,15 +397,15 @@ describe('redis', () => {
             data: { exposure_count: 5 },
             params: "" // no override
         };
-        const req = createRequest({
+        req = createRequest({
             method: "POST",
             path: path,
             body: body,
             headers: {
                 authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
             }
-        }) as MockRequest<ff.Request>;
-        const res = createResponse();
+        });
+        res = createResponse();
 
         const today = new Date();
         const todayStr = today.toISOString().split('T')[0];
@@ -440,15 +446,15 @@ describe('redis', () => {
             params: "" // no override
         };
         
-        const req = createRequest({
+        req = createRequest({
             method: "POST",
             path: path,
             body: body,
             headers: {
                 authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
             }
-        }) as MockRequest<ff.Request>;
-        const res = createResponse();
+        });
+        res = createResponse();
 
         const today = new Date();
         const todayStr = today.toISOString().split('T')[0];
@@ -486,15 +492,15 @@ describe('redis', () => {
         const path = "/nightly-digest-stats";
         const body = null;
         
-        const req = createRequest({
+        req = createRequest({
             method: "POST",
             path: path,
             body: undefined,
             headers: {
                 authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
             }
-        }) as MockRequest<ff.Request>;
-        const res = createResponse();
+        });
+        res = createResponse();
         
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
@@ -516,7 +522,7 @@ describe('redis', () => {
     it('/nightly-digest-stats should handle invalid params (not reaccumulate)', async () => {
         const path = "/nightly-digest-stats";
         
-        const req = createRequest({
+        req = createRequest({
             method: "POST",
             path: path,
             body: { 
@@ -525,9 +531,9 @@ describe('redis', () => {
             headers: {
                 authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
             }
-        }) as MockRequest<ff.Request>;
+        });
         Object.defineProperty(req, 'body', {});
-        const res = createResponse();
+        res = createResponse();
         
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
@@ -552,15 +558,15 @@ describe('redis', () => {
             data: { exposure_count: "5" } // String instead of number
         }
 
-        const req = createRequest({
+        req = createRequest({
             method: "POST",
             path: path,
             body: body,
             headers: {
                 authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
             }
-        }) as MockRequest<ff.Request>;
-        const res = createResponse();
+        });
+        res = createResponse();
     
         await mainHandler(req, res);
 
@@ -575,15 +581,15 @@ describe('redis', () => {
         const body = { 
             data: { exposure_count: 5 } 
         }
-        const req = createRequest({
+        req = createRequest({
             method: "POST",
             path: path,
             body: body,
             headers: {
                 authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
             }
-        }) as MockRequest<ff.Request>;
-        const res = createResponse();
+        });
+        res = createResponse();
 
         // Mock Redis to say it already ran today
         redisClientMock.get.mockImplementation(async (key) => {
@@ -605,15 +611,15 @@ describe('redis', () => {
             data: { exposure_count: 5 },
             params: "reaccumulate"
         }
-        const req = createRequest({
+        req = createRequest({
             method: "POST",
             path: path,
             body: body,
             headers: {
                 authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
             }
-        }) as MockRequest<ff.Request>;
-        const res = createResponse();
+        });
+        res = createResponse();
 
         redisClientMock.get.mockImplementation(async (key) => {
             if (key === 'summit-status:date-last-run') return todayStr;
@@ -629,15 +635,15 @@ describe('redis', () => {
     it('returns 404 for an undefined POST stats path', async () => {
         const path = "/invalid-stats-path";
         const body = { some: 'data' };
-        const req = createRequest({
+        req = createRequest({
             method: "POST",
             path: path,
             body: body,
             headers: {
                 authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
             }
-        }) as MockRequest<ff.Request>;
-        const res = createResponse();
+        });
+        res = createResponse();
     
         await mainHandler(req, res);
 
@@ -653,15 +659,15 @@ describe('redis', () => {
     it('should 404 for /blah', async() => {
         const path = "/blah";
         const body = {};
-        const req = createRequest({
+        req = createRequest({
             method: "GET",
             path: path,
             body: body,
             headers: {
                 authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
             }
-        }) as MockRequest<ff.Request>;
-        const res = createResponse();
+        });
+        res = createResponse();
 
         await mainHandler(req, res);
 
@@ -671,15 +677,15 @@ describe('redis', () => {
     it('should return error for null redis keys', async () => {
         const path = "/";
         const body = {};
-        const req = createRequest({
+        req = createRequest({
             method: "GET",
             path: path,
             body: body,
             headers: {
                 authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
             }
-        }) as MockRequest<ff.Request>;
-        const res = createResponse();
+        });
+        res = createResponse();
 
         redisClientMock.get.mockResolvedValue(null); // simulate empty redis
 
@@ -703,15 +709,15 @@ describe('redis', () => {
     it('should return 204 for OPTIONS', async () => {
         const path = "/";
         const body = {};
-        const req = createRequest({
+        req = createRequest({
             method: "OPTIONS",
             path: path,
             body: body,
             headers: {
                 authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
             }
-        }) as MockRequest<ff.Request>;
-        const res = createResponse();
+        });
+        res = createResponse();
 
         await mainHandler(req, res);
 
@@ -745,15 +751,15 @@ describe('redis', () => {
         ])('should successfully delete valid key: %s', async (queryKey, expectedRedisKey) => {
             const path  = "/";
             const body = {};
-            const req = createRequest({
+            req = createRequest({
                 method: "DELETE",
                 path: path,
                 body: body,
                 headers: {
                     authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
                 }
-            }) as MockRequest<ff.Request>;
-            const res = createResponse();
+            });
+            res = createResponse();
 
             req.query = { key: queryKey };
     
@@ -779,15 +785,15 @@ describe('redis', () => {
         ])('should return 400 for invalid or missing key: %s', async (badKey) => {
             const path  = "/";
             const body = {};
-            const req = createRequest({
+            req = createRequest({
                 method: "DELETE",
                 path: path,
                 body: body,
                 headers: {
                     authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
                 }
-            }) as MockRequest<ff.Request>;
-            const res = createResponse();
+            });
+            res = createResponse();
 
             req.query = badKey !== undefined ? { key: badKey } : {};
     
@@ -805,15 +811,15 @@ describe('redis', () => {
         it('should return 404 when key is valid but does not exist in Redis', async () => {
             const path  = "/";
             const body = {};
-            const req = createRequest({
+            req = createRequest({
                 method: "DELETE",
                 path: path,
                 body: body,
                 headers: {
                     authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
                 }
-            }) as MockRequest<ff.Request>;
-            const res = createResponse();
+            });
+            res = createResponse();
 
             req.query = { key: 'exposures' };
         
@@ -833,15 +839,15 @@ describe('redis', () => {
         it('should return 500 when Redis throws an unexpected error', async () => {
             const path  = "/";
             const body = {};
-            const req = createRequest({
+            req = createRequest({
                 method: "DELETE",
                 path: path,
                 body: body,
                 headers: {
                     authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
                 }
-            }) as MockRequest<ff.Request>;
-            const res = createResponse();
+            });
+            res = createResponse();
 
             req.query = { key: 'date-last-run' };
         
@@ -874,15 +880,15 @@ describe('redis', () => {
     it('returns 400 for unsupported HTTP method', async () => {
         const path  = "/";
         const body = {};
-        const req = createRequest({
+        req = createRequest({
             method: "PUT",
             path: path,
             body: body,
             headers: {
                 authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}`
             }
-        }) as MockRequest<ff.Request>;
-        const res = createResponse();
+        });
+        res = createResponse();
     
         await mainHandler(req, res);
 
