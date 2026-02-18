@@ -18,7 +18,5 @@ export async function getRedisClient() {
         }
     });
 
-    client.on('error', err => console.error('Redis Client Error', err));
-
     return client;
 }
