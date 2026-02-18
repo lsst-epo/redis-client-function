@@ -67,7 +67,7 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
                 pictocode: summitData.rawCurrentWeather?.data_current?.pictocode_detailed ?? 0 
             },
             exposure: { 
-                count: exposureCount // already defaults to 0
+                count: summitData.nightlyDigest?.exposures_count ?? 0, // already defaults to 0
             },
             dome: { 
                 isOpen: summitData.nightlyDigest?.dome_open ?? false

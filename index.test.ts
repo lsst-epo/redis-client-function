@@ -23,7 +23,7 @@ describe('redis', () => {
         del: jest.Mock;
         hGetAll: jest.Mock;
         hSet: jest.Mock;
-    };
+    }
 
     let req: MockRequest<ff.Request>;
     let res: MockResponse<ff.Response>;
@@ -234,6 +234,9 @@ describe('redis', () => {
                 if (key === 'summit-status:exposures') {
                     return null;
                 }
+                if (key === 'summit-status:nightly-digest') {
+                    return JSON.stringify({exposures_count: 2});
+                }
                 return JSON.stringify({}); // Other keys return empty objects
             });
         
@@ -241,7 +244,7 @@ describe('redis', () => {
         
             const responseData = res._getData(); 
             expect(responseData.survey.progress).toBe("0.0");
-            expect(responseData.exposure.count).toBe(0);
+            expect(responseData.exposure.count).toBe(2);
         });
     
         it('should return default values in widgetData when Redis data is malformed or partial in /widgets', async () => {
