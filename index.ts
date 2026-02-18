@@ -100,8 +100,6 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
     } 
 
     if(req.method == "POST") {
-        console.info("SummitStatusDataUpdater: Saving Data!"); // Used for querying Logging Explorer to find the "SummitStatusDataUpdater"
-
         const STATS_MAP: Record<string, {
             redisKey: string,
             field: string,
@@ -172,15 +170,9 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
             const lastRunKey = 'summit-status:date-last-run';
             const todayUTC = new Date().toISOString().split('T')[0]; // Format: "YYYY-mm-dd"
             const lastRunDate = await client.get(lastRunKey);
-            console.info(`newValue: ${newValue}`);
-            console.info(`req.body.params: ${req.body.params}`);
-
-            console.info(`lastRunDate: ${lastRunDate}`);
-            console.info(`todayUTC: ${todayUTC}`);
 
             let override = false;
             if (req.body?.params === 'reaccumulate') {
-                console.info('reaccumulating');
                 override = true;
             }
 
@@ -189,7 +181,6 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
             }
 
             if (!override && lastRunDate !== null && (lastRunDate >= todayUTC)) {
-                console.info('skipping ... nightly digest already processed for today')
                 return res.status(429).json({ 
                     status: "SKIPPED", 
                     message: "Nightly digest already processed for today." 
@@ -199,7 +190,6 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
             // add cached old value to new one
             const currentCache = await client.get('summit-status:exposures') ?? 0;
             const mergedValue = Number(currentCache) + Number(newValue);
-            console.info(`mergedValue: ${mergedValue}`);
 
             // cache both the new value and when the last run was
             await client.set(route.redisKey, mergedValue);
@@ -234,7 +224,6 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
             const result = await client.del(fullTargetKey);
 
             if (result === 1) {
-                console.info(`Successfully cleared ${fullTargetKey}`);
                 return res.status(200).json({ 
                     status: "SUCCESS", 
                     message: `${fullTargetKey} cache cleared successfully.`
