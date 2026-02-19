@@ -40,8 +40,10 @@ Here's a high level summary of our endpoints:
     - '/raw-current-weather-stats'
     - '/basic-weather-stats'
     - '/cloud-weather-stats'
-    - '/nightly-digest-stats'
-        - This one in particular is a bit more complicated. We want exposure count calls to happen at most once per day. For the happy path, we track 2 keys:
+    - '/current-exposure-count'
+        - This gets the most recent exposure from the nightly digest api, not aggregated, but this resets every day.
+    - '/accumulated-exposure-count'
+        - This one in particular is a bit more complicated. We want exposure count calls to happen at most once per day (noon Chile time). For the happy path, we track 2 keys:
             - `date-last-run` which is the date we last run a nightly digest call
             - `exposures` which is the running exposure count
         There's an optional `reaccumulate` mode that overrides the `lastRunDate` check to allow us to repopulate the exposure counts in the rare case we have somehow accumulated an incorrect count. We end up using this `exposures` count to calculate the survey progress to 1 decimal place, which the consuming front-end client will read as an integer (no decimal places) as this is just a back of the envelope calculation.
