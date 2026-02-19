@@ -211,7 +211,7 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
 
     if (req.method == "DELETE") {
         // delete desired key given the `key` query parameter
-        const validKeys = new Set(['date-last-run', 'exposures']);
+        const validKeys = new Set(['date-last-run', 'exposures', 'current-exposures']);
         const targetKey = req.query.key as string;
 
         if (!targetKey || !validKeys.has(targetKey)) {

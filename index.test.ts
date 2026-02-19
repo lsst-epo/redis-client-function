@@ -779,7 +779,7 @@ describe('redis', () => {
                 const responseData = res._getJSONData(); // Automatically parses JSON
                 expect(responseData).toMatchObject({
                     status: "ERROR",
-                    message: "Valid keys are: date-last-run, exposures"
+                    message: "Valid keys are: date-last-run, exposures, current-exposures"
                 });
             });
     
