@@ -193,9 +193,9 @@ describe('redis', () => {
                 'summit-status:raw-current-weather-data': JSON.stringify({ data_current: {
                     pictocode_detailed: 2
                 }}),
-                'summit-status:nightly-digest': JSON.stringify({
+                'summit-status:current-exposures': JSON.stringify({
                     dome_open: true,
-                    exposures_count: 7
+                    exposure_count: 7
                 }),
                 'summit-status:exposures': "7"
             };
@@ -234,8 +234,8 @@ describe('redis', () => {
                 if (key === 'summit-status:exposures') {
                     return null;
                 }
-                if (key === 'summit-status:nightly-digest') {
-                    return JSON.stringify({exposures_count: 2});
+                if (key === 'summit-status:current-exposures') {
+                    return JSON.stringify({exposure_count: 2});
                 }
                 return JSON.stringify({}); // Other keys return empty objects
             });
@@ -260,7 +260,7 @@ describe('redis', () => {
             // valid JSON but missing specific fields
             const mockDb: Record<string, string> = {
                 'summit-status:raw-current-weather-data': JSON.stringify(null), // missing pictocode
-                'summit-status:nightly-digest': JSON.stringify(null), // missing dome_open
+                'summit-status:current-exposures': JSON.stringify(null), // missing dome_open
                 'summit-status:alert-current': JSON.stringify(null), // missing count
                 'summit-status:exposures': JSON.stringify(null)
             };
@@ -324,9 +324,9 @@ describe('redis', () => {
             'summit-status:raw-current-weather-data': JSON.stringify({ data_current: {
                 pictocode_detailed: 2
             }}),
-            'summit-status:nightly-digest': JSON.stringify({
+            'summit-status:current-exposures': JSON.stringify({
                 dome_open: true,
-                exposures_count: 7
+                exposure_count: 7
             }),
             'summit-status:exposures': "7",
             'summit-status:date-last-run': '2026-02-15',
@@ -351,9 +351,9 @@ describe('redis', () => {
         });
     });
 
-    describe('/nightly-digest-stats', () => {
-        const path = "/nightly-digest-stats";
-        it('/nightly-digest-stats should get data', async () => {
+    describe('/accumulated-exposure-count', () => {
+        const path = "/accumulated-exposure-count";
+        it('/accumulated-exposure-count should get data', async () => {
             const body = {
                 data: { exposure_count: 5 },
                 params: "" // no override
@@ -399,7 +399,7 @@ describe('redis', () => {
                 });
         });
     
-        it('/nightly-digest-stats should get data and fall back to a default of 0 if new value is not given', async () => {
+        it('/accumulated-exposure-count should get data and fall back to a default of 0 if new value is not given', async () => {
             const body = {
                 // missing data field
                 data: null,
@@ -448,7 +448,7 @@ describe('redis', () => {
                 });
         });
     
-        it('/nightly-digest-stats should get data and have a default if new value is not given', async () => {
+        it('/accumulated-exposure-count should get data and have a default if new value is not given', async () => {
             const body = null;
             
             req = createRequest({
@@ -478,7 +478,7 @@ describe('redis', () => {
             expect(res._getStatusCode()).toBe(204);
         });
     
-        it('/nightly-digest-stats should handle invalid params (not reaccumulate)', async () => {
+        it('/accumulated-exposure-count should handle invalid params (not reaccumulate)', async () => {
             req = createRequest({
                 method: "POST",
                 path: path,
@@ -509,7 +509,7 @@ describe('redis', () => {
             expect(res._getStatusCode()).toBe(200);
         });
     
-        it('/nightly-digest-stats returns 400 if exposure_count is not an integer', async () => {
+        it('/accumulated-exposure-count returns 400 if exposure_count is not an integer', async () => {
             const body = { 
                 data: { exposure_count: "5" } // String instead of number
             }
@@ -531,7 +531,7 @@ describe('redis', () => {
             expect(responseData).toMatchObject({ status: "ERROR" });
         });
     
-        it('/nightly-digest-stats returns 429 (too many requests) if already processed today and no override', async () => {
+        it('/accumulated-exposure-count returns 429 (too many requests) if already processed today and no override', async () => {
             const todayStr = new Date().toISOString().split('T')[0];
             const body = { 
                 data: { exposure_count: 5 } 
@@ -559,7 +559,7 @@ describe('redis', () => {
             expect(responseData).toMatchObject({ status: "SKIPPED" });
         });
     
-        it('/nightly-digest-stats returns 200 if reaccumulate ', async () => {
+        it('/accumulated-exposure-count returns 200 if reaccumulate ', async () => {
             const todayStr = new Date().toISOString().split('T')[0];
             const body = { 
                 data: { exposure_count: 5 },
@@ -666,7 +666,7 @@ describe('redis', () => {
                 dome: { status: 'OPEN' },
                 basicWeather: { condition: 'Sunny' },
                 cloudWeather: { coverage: 'None' },
-                nightlyDigest: { error: "No data available." },
+                currentExposure: { error: "No data available." },
                 rawCurrentWeather: { error: "No data available." },
                 alert: { error: "No data available." }
             });
@@ -697,7 +697,7 @@ describe('redis', () => {
                 dome: { error: "No data available." },
                 basicWeather: { error: "No data available." },
                 cloudWeather: { error: "No data available." },
-                nightlyDigest: { error: "No data available." },
+                currentExposure: { error: "No data available." },
                 rawCurrentWeather: { error: "No data available." },
                 alert: { error: "No data available." }
             });
@@ -871,7 +871,7 @@ describe('redis', () => {
     it('req.body is null', async () => {
         const req = {
             method: "POST",
-            path: "/nightly-digest-stats",
+            path: "/accumulated-exposure-count",
             body: null, // force the first part of ?. to trigger
             headers: { authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}` }
         } as unknown as ff.Request;

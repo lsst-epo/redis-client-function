@@ -39,7 +39,7 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
         let basicWeatherSummitData = await client.get('summit-status:basic-weather-current'); // `current` is the default mode and the only thing we care about for caching for now
         let basicCloudSummitData = await client.get('summit-status:cloud-weather-current');
         let rawCurrentWeatherSummitData = await client.get('summit-status:raw-current-weather-data'); // uses the raw `current` meteoblue package (rather than the forecast packages: basic and cloud)
-        let nightlyDigestSummitData = await client.get('summit-status:nightly-digest');
+        let currentExposureSummitData = await client.get('summit-status:current-exposures'); // daily current exposures from nightly digest 
         let alertData = await client.get('summit-status:alert-current')
         let exposureData = await client.get('summit-status:exposures'); // exposure counts by day
         let dateLastRunData = await client.get('summit-status:date-last-run'); // when was nightly-digest-stats last run?
@@ -52,7 +52,7 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
             basicWeather: (basicWeatherSummitData == null) ? { error: "No data available." } : JSON.parse(basicWeatherSummitData),
             cloudWeather: (basicCloudSummitData == null) ? { error: "No data available." } : JSON.parse(basicCloudSummitData),
             rawCurrentWeather: (rawCurrentWeatherSummitData == null) ? { error: "No data available." } : JSON.parse(rawCurrentWeatherSummitData),  // uses the raw `current` meteoblue package (rather than the forecast packages: basic and cloud)
-            nightlyDigest: (nightlyDigestSummitData == null) ? { error: "No data available." } : JSON.parse(nightlyDigestSummitData),
+            currentExposure: (currentExposureSummitData == null) ?  { error: "No data available." } : JSON.parse(currentExposureSummitData),
             alert: (alertData == null) ? { error: "No data available." } : JSON.parse(alertData)
         }
 
@@ -67,10 +67,10 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
                 pictocode: summitData.rawCurrentWeather?.data_current?.pictocode_detailed ?? 0 
             },
             exposure: { 
-                count: summitData.nightlyDigest?.exposures_count ?? 0, // already defaults to 0
+                count: summitData.currentExposure?.exposure_count ?? 0, // already defaults to 0
             },
             dome: { 
-                isOpen: summitData.nightlyDigest?.dome_open ?? false
+                isOpen: summitData.currentExposure?.dome_open ?? false
             },
             survey: {
                 progress: surveyProgress
@@ -143,10 +143,15 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
                 label: 'cloud weather', 
                 defaultParam: 'current' 
             },
-            '/nightly-digest-stats': { 
+            '/current-exposure-count': {
+                redisKey: 'summit-status:current-exposures',
+                field: 'data',
+                label: 'most recent exposure'
+            },
+            '/accumulated-exposure-count': { 
                 redisKey: 'summit-status:exposures', 
                 field: 'data', 
-                label: 'nightly digest', 
+                label: 'accumulated nightly digest data', 
             }
         }
 
@@ -163,9 +168,7 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
             });
         }
 
-        // special case for nightly digest
-        if (req.path === '/nightly-digest-stats') {
-            // validate new daily value
+        if (req.path === '/accumulated-exposure-count') {
             const newValue = req.body.data?.exposure_count ?? 0; // req.body guaranteed to exist due to the payload === undefined check above.
             const lastRunKey = 'summit-status:date-last-run';
             const todayUTC = new Date().toISOString().split('T')[0]; // Format: "YYYY-mm-dd"
@@ -202,7 +205,6 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
         const finalRedisKey = route.defaultParam 
             ? `${route.redisKey}-${req.body.params || route.defaultParam}` 
             : route.redisKey;
-
         await client.set(finalRedisKey, JSON.stringify(payload));
         return res.status(200).json({ status: "SUCCESS", message: `Saved ${route.label} data!` });
     }
