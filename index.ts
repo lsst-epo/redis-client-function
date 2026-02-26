@@ -76,7 +76,7 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
                 progress: surveyProgress
             },
             alert: {
-                count: summitData.alert?.count ?? 0
+                count: summitData.alert?.count ? parseInt(summitData.alert?.count) : 0
             }
         }
         
@@ -152,8 +152,14 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
                 redisKey: 'summit-status:exposures', 
                 field: 'data', 
                 label: 'accumulated nightly digest data', 
+            },
+            '/alert-count': { 
+                redisKey: 'summit-status:alert-current', 
+                field: 'alertCount', 
+                label: 'slac alert count from dashboard', 
             }
         }
+
 
         const route = STATS_MAP[req.path];
         if (!route) {
