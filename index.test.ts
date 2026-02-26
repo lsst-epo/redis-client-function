@@ -102,6 +102,7 @@ describe('redis', () => {
         ['dome', '/dome-stats'],
         ['basic', '/basic-weather-stats'],
         ['cloud', '/cloud-weather-stats'],
+        ['alerts', '/alert-count']
     ])('should store %s stats successfully', async(key, path) => {
         if(key == "basic" || key == "cloud"){
             key = "data";
@@ -197,7 +198,8 @@ describe('redis', () => {
                     dome_open: true,
                     exposure_count: 7
                 }),
-                'summit-status:exposures': "7"
+                'summit-status:exposures': "7",
+                'summit-status:alert-current': JSON.stringify({ count: '123' })
             };
     
             redisClientMock.get.mockImplementation(async (key) => {
@@ -208,12 +210,13 @@ describe('redis', () => {
     
             expect(res._getStatusCode()).toBe(200);
             const responseData = res._getData();
+
             expect(responseData).toEqual({
                 weather: { pictocode: 2 },
                 exposure: { count: 7 },
                 dome: { isOpen: true },
                 survey: { progress: "0.0" },
-                alert: { count: 0 }
+                alert: { count: 123 }
             });
         });
     
@@ -295,7 +298,7 @@ describe('redis', () => {
             await mainHandler(req, res);
         
             const data = res._getData();
-            expect(data.alert.count).toBe("10");
+            expect(data.alert.count).toBe(10);
         });
     });
     
@@ -330,6 +333,7 @@ describe('redis', () => {
             }),
             'summit-status:exposures': "7",
             'summit-status:date-last-run': '2026-02-15',
+            'summit-status:alert-current': JSON.stringify({ count: '123' })
         };
 
         redisClientMock.get.mockImplementation(async (key) => {
@@ -346,7 +350,7 @@ describe('redis', () => {
             exposure: { count: 7 },
             dome: { isOpen: true },
             survey: { progress: "0.0" },
-            alert: { count: 0 },
+            alert: { count: 123 },
             dateLastRun: "2026-02-15"
         });
     });
