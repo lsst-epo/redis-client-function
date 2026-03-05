@@ -16,6 +16,8 @@ describe('redis', () => {
 
     let redisClientMock: {
         connect: jest.Mock;
+        disconnect: jest.Mock;
+        isOpen: boolean;
         set: jest.Mock;
         get: jest.Mock;
         quit: jest.Mock;
@@ -48,6 +50,8 @@ describe('redis', () => {
 
         redisClientMock = {
             connect: jest.fn().mockResolvedValue(undefined),
+            disconnect: jest.fn().mockResolvedValue(undefined),
+            isOpen: true,
             set: jest.fn().mockResolvedValue('OK'),
             get: jest.fn().mockResolvedValue('1'),
             on: jest.fn(),
@@ -889,6 +893,39 @@ describe('redis', () => {
         await mainHandler(req, res);
 
         expect(res.status).toHaveBeenCalledWith(204);
+    });
+
+    describe('Connection', () => {
+        it('should disconnect from redis after a successful request', async () => {
+            req = createRequest({
+                method: "GET",
+                path: "/",
+                headers: { authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}` }
+            });
+            res = createResponse();
+    
+            await mainHandler(req, res);
+    
+            expect(redisClientMock.connect).toHaveBeenCalled();
+            expect(redisClientMock.disconnect).toHaveBeenCalledTimes(1);
+        });
+    
+        it('should disconnect from redis even if an error occurs', async () => {
+            req = createRequest({
+                method: "GET",
+                path: "/",
+                headers: { authorization: `Bearer ${process.env.REDIS_BEARER_TOKEN}` }
+            });
+            res = createResponse();
+    
+            redisClientMock.get.mockRejectedValue(new Error("read ETIMEDOUT"));
+    
+            await mainHandler(req, res);
+    
+            // finall block should trigger despite error
+            expect(redisClientMock.disconnect).toHaveBeenCalledTimes(1);
+            expect(res._getStatusCode()).toBe(500);
+        });
     });
 });
 
