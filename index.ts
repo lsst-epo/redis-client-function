@@ -60,7 +60,7 @@ ff.http('summit-status', async (req: ff.Request, res: ff.Response) => {
             const totalExpectedExposureCount = Number(process.env.TOTAL_EXPECTED_EXPOSURES);
             const exposureCount = parseInt(exposureData || "0", 10) || 0;
             const surveyProgress = (totalExpectedExposureCount
-                ? (exposureCount / totalExpectedExposureCount)
+                ? (exposureCount * 100 / totalExpectedExposureCount)
                 : 0).toFixed(1); // use 1 decimal place since this is a back of the envelope calculation
 
             let widgetData = {
